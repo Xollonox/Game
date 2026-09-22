@@ -1,36 +1,34 @@
 extends Node3D
-## Arena: follow camera, HUD, and the debug keys used to exercise the ragdoll
-## without a second combatant (1 = light, 2 = heavy/stagger, 3 = crushing/ragdoll).
+## Arena: follow camera, interface wiring, and the debug keys used to exercise
+## the ragdoll without a second combatant (1 = light, 2 = heavy, 3 = crushing).
+##
+## The combat core is unchanged from the original build — same Jolt config,
+## same active-ragdoll rig, same physics sword. This file only owns the camera
+## feel, the interface updates, and the wiring between the world, the fighters
+## and the HUD.
 
 const CAM_HEIGHT := 2.6
 const CAM_DISTANCE := 6.0
 const CAM_LAG := 9.0
 const CAM_ZOOM_MIN := 3.2
 const CAM_ZOOM_MAX := 10.0
-const MAX_LOG_LINES := 6
 
 @onready var player: KickbackActor = $Player
 @onready var camera: Camera3D = $Camera3D
-@onready var state_label: Label = $HUD/StateLabel
-@onready var log_label: Label = $HUD/LogLabel
 @onready var touch_controls: TouchControls = $TouchControls
-
-## Phase 6 UI: per-fighter health readout and the death overlay, built in code
-## so the arena scene stays a greybox.
-var health_label: Label
-var death_overlay: Label
-var fps_label: Label
-var _cam_dist := CAM_DISTANCE
+@onready var hud: ArenaHUD = $HUD
+@onready var sun: DirectionalLight3D = $Sun
 
 ## Peak positional shake in metres at severity 1.0. Small on purpose — camera
 ## shake that reads as "impact" rather than "earthquake" is a few centimetres.
 const SHAKE_AMPLITUDE := 0.22
 const SHAKE_DECAY := 5.0
 
+var _cam_dist := CAM_DISTANCE
 var _cam_yaw := 0.0
-var _log: Array[String] = []
 var _shake := 0.0
 var _rng := RandomNumberGenerator.new()
+var _enemies: Array[Enemy] = []
 
 
 func _ready() -> void:
@@ -38,8 +36,7 @@ func _ready() -> void:
 	if player:
 		player.camera = camera
 		player.touch_controls = touch_controls
-		if player.has_signal("landed_hit"):
-			player.landed_hit.connect(_on_landed_hit)
+		player.landed_hit.connect(_on_player_landed_hit)
 		player.died.connect(_on_actor_died)
 	if touch_controls:
 		touch_controls.camera_dragged.connect(_on_camera_dragged)
@@ -47,19 +44,42 @@ func _ready() -> void:
 
 	for node in get_tree().get_nodes_in_group("hittable"):
 		if node is Enemy:
+			_enemies.append(node)
 			node.target = player
 			node.landed_hit.connect(_on_enemy_landed_hit)
 			node.died.connect(_on_actor_died)
-	_build_hud()
-	_log_line("WASD/joystick move · SPACE/button swing · 1/2/3 hit self · drag orbit")
+
+	hud.restart_requested.connect(_restart)
+	hud.leave_requested.connect(_leave_to_menu)
+	GameState.settings_changed.connect(_apply_settings)
+	_apply_settings()
+	AudioDirector.play_fight_music()
+	AudioDirector.start_ambience()
+
+
+## Settings that live on the arena side: shadows, particle budget, blood.
+func _apply_settings() -> void:
+	if sun:
+		sun.shadow_enabled = GameState.quality_high
+	CombatFX.blood_enabled = GameState.blood
+	CombatFX.quality_high = GameState.quality_high
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		if player and not player.is_dead():
+			hud.toggle_pause()
+		return
+	if hud.is_paused():
+		return
+
 	if event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_RIGHT:
 		_cam_yaw -= event.relative.x * 0.006
 	elif event is InputEventMouseButton and event.pressed:
-		if event.button_index == MOUSE_BUTTON_WHEEL_UP: _cam_dist = clampf(_cam_dist - 0.6, CAM_ZOOM_MIN, CAM_ZOOM_MAX)
-		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN: _cam_dist = clampf(_cam_dist + 0.6, CAM_ZOOM_MIN, CAM_ZOOM_MAX)
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_cam_dist = clampf(_cam_dist - 0.6, CAM_ZOOM_MIN, CAM_ZOOM_MAX)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_cam_dist = clampf(_cam_dist + 0.6, CAM_ZOOM_MIN, CAM_ZOOM_MAX)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_1:
@@ -74,16 +94,17 @@ func _unhandled_input(event: InputEvent) -> void:
 				_cam_yaw -= 0.25
 			KEY_R:
 				if player and player.is_dead():
-					get_tree().reload_current_scene()
+					_restart()
 
 
+## Used by the debug keys and by the vision test to drive a hit without a
+## second fighter. Kept public for exactly that reason.
 func _hit_player(profile: ImpactProfile, severity: float) -> void:
 	if not player:
 		return
 	var dir := -player.global_basis.z
 	player.receive_hit_at("Chest", dir, profile)
 	CombatFX.impact(player.global_position + Vector3.UP * 1.25, dir, severity)
-	_log_line("self-hit: %s" % profile.profile_name)
 
 
 func _on_shake_requested(strength: float) -> void:
@@ -106,75 +127,52 @@ func _physics_process(delta: float) -> void:
 			_rng.randfn(0.0, 1.0), _rng.randfn(0.0, 1.0), _rng.randfn(0.0, 1.0)) * k
 
 	camera.look_at(player.global_position + Vector3.UP * 1.0)
+	_update_hud()
 
-	if state_label:
-		state_label.text = "State: %s" % player.get_state_name()
-	if health_label:
-		health_label.text = _health_text()
-	if fps_label:
-		fps_label.text = "FPS %d" % Engine.get_frames_per_second()
+
+func _update_hud() -> void:
+	hud.set_vitals(player.health, player.max_health)
+	var entries: Array = []
+	for e in _enemies:
+		entries.append({
+			"name": String(e.name),
+			"health": e.health,
+			"max": e.max_health,
+			"dead": e.is_dead(),
+		})
+	hud.set_enemies(entries)
+
+
+func _restart() -> void:
+	Engine.time_scale = 1.0
+	get_tree().paused = false
+	get_tree().reload_current_scene()
+
+
+func _leave_to_menu() -> void:
+	Engine.time_scale = 1.0
+	get_tree().paused = false
+	AudioDirector.stop_ambience()
+	get_tree().change_scene_to_file("res://scenes/menu.tscn")
 
 
 func _on_camera_dragged(delta: Vector2) -> void:
 	_cam_yaw -= delta.x * 0.006
 
 
-func _on_landed_hit(target_name: String, profile_name: String) -> void:
-	_log_line("hit %s with %s" % [target_name, profile_name])
+func _on_player_landed_hit(target_name: String, profile_name: String) -> void:
+	hud.feed("%s — %s" % [target_name, profile_name])
 
 
 func _on_enemy_landed_hit(target_name: String, profile_name: String) -> void:
-	_log_line("%s took %s" % [target_name, profile_name])
-
-
-func _log_line(text: String) -> void:
-	_log.append(text)
-	while _log.size() > MAX_LOG_LINES:
-		_log.pop_front()
-	if log_label:
-		log_label.text = "\n".join(_log)
-
-
-## Phase 6 basic UI: one line of per-fighter health plus a death overlay with
-## the restart hint. Built in code — nothing here needs scene authoring.
-func _build_hud() -> void:
-	var hud: CanvasLayer = $HUD
-	health_label = Label.new()
-	health_label.position = Vector2(16, 42)
-	health_label.add_theme_font_size_override("font_size", 20)
-	hud.add_child(health_label)
-
-	death_overlay = Label.new()
-	death_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	death_overlay.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	death_overlay.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	death_overlay.add_theme_font_size_override("font_size", 44)
-	death_overlay.add_theme_color_override("font_color", Color(0.92, 0.18, 0.12))
-	death_overlay.text = "YOU DIED\nPress R to restart"
-	death_overlay.visible = false
-	hud.add_child(death_overlay)
-	fps_label = Label.new()
-	fps_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	fps_label.offset_left = -110.0
-	fps_label.offset_top = 12.0
-	fps_label.offset_right = -16.0
-	fps_label.offset_bottom = 40.0
-	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	hud.add_child(fps_label)
-
-
-func _health_text() -> String:
-	if player.is_dead():
-		return ""
-	var parts: Array[String] = ["You %d" % roundi(player.health)]
-	for node in get_tree().get_nodes_in_group("hittable"):
-		if node is Enemy and not node.is_dead():
-			parts.append("%s %d" % [node.name, roundi(node.health)])
-	return "   ".join(parts)
+	if target_name == "Player":
+		hud.feed("You take a %s" % profile_name.to_lower())
+	else:
+		hud.feed("%s — %s" % [target_name, profile_name])
 
 
 func _on_actor_died(actor: KickbackActor) -> void:
 	if actor == player:
-		death_overlay.visible = true
+		hud.show_death()
 	else:
-		_log_line("%s is down" % actor.name)
+		hud.feed("%s falls" % actor.name)
