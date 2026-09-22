@@ -22,6 +22,8 @@ playable at:
 | `Space` / left click, or the on-screen SWING button | Sword swing — a real physics-driven blade, not a hitscan; it deals damage from its own measured contact speed |
 | `1` / `2` / `3` | Hit yourself: light / heavy (stagger) / crushing (ragdoll) |
 | Right-drag, `Q` / `E`, or a touch drag on the right side of the screen | Orbit the camera |
+| Mouse wheel | Zoom camera |
+| `R` after death | Restart |
 
 On a touchscreen, a virtual joystick (bottom-left) and swing button (bottom-right)
 appear automatically — see `scripts/touch_controls.gd`.
@@ -65,7 +67,9 @@ Repository **Settings → Pages**, then either:
 | `scenes/` | `arena.tscn` (the playable scene), `player.tscn`, `dummy.tscn` |
 | `scripts/` | `kickback_actor.gd` (shared ragdoll actor), `player.gd`, `physics_sword.gd` (the weapon), `arena.gd`, `combat_profiles.gd`, `touch_controls.gd` |
 | `addons/kickback/` | Active-ragdoll plugin (MIT) — see `assets/CREDITS.md` |
-| `assets/` | Models, animations and SFX, all CC0 — provenance in `assets/CREDITS.md` |
+| `assets/` | Armored character, Blender-fixed weapons, Kenney arena props and SFX — provenance in `assets/CREDITS.md` |
+| `tools/blender/` | Headless Blender asset rebuild pipeline |
+| `tests/` | Vision, autonomous gameplay and performance tests |
 | `docs/` | Exported web build served by GitHub Pages |
 | `research.md` | How Half Sword's combat works and how to reproduce it |
 | `PLAN.md` | Phased build plan and current status |

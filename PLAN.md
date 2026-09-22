@@ -7,15 +7,15 @@ Engine: Godot 4.7.2 (installed), Jolt physics (default in 4.7).
 ## Phase 0 — Project groundwork (done / ongoing)
 - [x] Godot 4.7.2 installed and verified runnable.
 - [x] Base project skeleton (`project.godot`, `scenes/`, `scripts/`, `assets/`).
-- [ ] Confirm Jolt is active in Project Settings → Physics → 3D → Physics Engine (should default to Jolt on 4.7; verify, don't assume).
-- [ ] Set up `assets/` subfolders: `assets/models/`, `assets/animations/`, `assets/sfx/`, `assets/sfx/CREDITS.md` (attribution ledger even for CC0, so provenance isn't lost).
+- [x] Confirm Jolt is active in Project Settings → Physics → 3D → Physics Engine (should default to Jolt on 4.7; verify, don't assume).
+- [x] Set up `assets/` subfolders: `assets/models/`, `assets/animations/`, `assets/sfx/`, `assets/sfx/CREDITS.md` (attribution ledger even for CC0, so provenance isn't lost).
 
 ## Phase 1 — Asset acquisition
-- [ ] Pull down a CC0 low-poly sword model (OpenGameArt "3D Swords Pack" or "CC0 - 3D Weapons") — need at least one usable `.glb`/`.fbx`/`.obj` importable into Godot.
-- [ ] Pull down the Quaternius "Universal Animation Library" (Mixamo-rig-compatible, Godot-friendly) for base locomotion (idle/walk/fall/get-up).
-- [ ] Pull down a melee-specific animation source (kevdev "Human Melee Animations") for windup/swing/block reference poses — these drive the *animated target* skeleton that the active ragdoll chases.
-- [ ] Pull down CC0 impact/clash SFX from OpenGameArt ("Punches, hits, swords and squishes", "Battle Sound Effects").
-- [ ] Record every source + license in `assets/CREDITS.md` as it's added.
+- [x] Pull down a CC0 low-poly sword model (OpenGameArt "3D Swords Pack" or "CC0 - 3D Weapons") — need at least one usable `.glb`/`.fbx`/`.obj` importable into Godot.
+- [x] Pull down the Quaternius "Universal Animation Library" (Mixamo-rig-compatible, Godot-friendly) for base locomotion (idle/walk/fall/get-up).
+- [x] Pull down a melee-specific animation source (kevdev "Human Melee Animations") for windup/swing/block reference poses — these drive the *animated target* skeleton that the active ragdoll chases.
+- [x] Pull down CC0 impact/clash SFX from OpenGameArt ("Punches, hits, swords and squishes", "Battle Sound Effects").
+- [x] Record every source + license in `assets/CREDITS.md` as it's added.
 
 ## Phase 2 — Active ragdoll character (highest-risk item first)
 
@@ -90,12 +90,19 @@ each frame, translated into a wrist/hand target position+orientation.~~
 ## Phase 5 — Encounter content
 - [x] One enemy using the same active-ragdoll rig, driven by a minimal state machine (approach, windup swing, recover) rather than full AI planning — `scripts/enemy.gd`, with per-enemy cadence jitter and peer separation.
 - [x] One small arena blockout (flat ground + a couple of props) — no need for custom art yet, greybox is fine — `scenes/arena.tscn` + `scripts/arena_decor.gd`.
-- [x] Wire in SFX from Phase 1 (clash on weapon-weapon contact, impact on weapon-body contact, footsteps/grunts from the animation packs if bundled) — impact + swish in `scripts/combat_fx.gd`; weapon-weapon clash rings the impact set pitched up (`CombatFX.play_clash`, driven by relative blade-tip speed in `scripts/physics_sword.gd`). Footsteps/grunts skipped: the animation packs don't bundle them.
+- [x] Wire in SFX from Phase 1 (clash on weapon-weapon contact, impact on weapon-body contact, footsteps/grunts from the animation packs if bundled) — impact + swish in `scripts/combat_fx.gd`; weapon-weapon clash rings the impact set pitched up (`CombatFX.play_clash`, driven by relative blade-tip speed in `scripts/physics_sword.gd`). Kenney CC0 metal impacts and concrete footsteps now replace placeholders; footsteps are distance-paced for walk/sprint.
 
 ## Phase 6 — Feel pass / polish (only after Phase 5 works end-to-end)
 - [x] Camera feel (shake/impact frames on big hits) — landed with the combat FX pass: pooled camera shake, hit-stop and blood (`scripts/combat_fx.gd` + `scripts/arena.gd`).
 - [x] Basic UI (health readout, restart-on-death) — per-fighter health keyed off the impact tier that fired (`scripts/kickback_actor.gd`); HUD readout, death overlay and R-to-restart in `scripts/arena.gd`. Death drops the rig into persistent (limp) ragdoll so downed fighters stay down and stop acting.
-- [ ] Pass on joint tuning across all limbs now that real combat data exists (this always needs a second pass once real content stresses it).
+- [x] Pass on joint tuning across all limbs now that real combat data exists (this always needs a second pass once real content stresses it).
+
+## Final polish and validation
+- [x] Headless Blender pipeline corrected sword pivots/scales and generated an armored character while preserving 46 animations.
+- [x] Added Kenney CC0 castle/town/survival props, armor visuals, real metal impacts, and footsteps.
+- [x] Added sprint, mouse-wheel zoom, FPS display, tighter camera response, and attack cadence tuning.
+- [x] Web-performance pass: Jolt 4/1 solver iterations, 2048 directional shadow, controlled prop/light counts.
+- [x] Automated vision, autonomous fight, smoke, and benchmark tests pass (152.8 FPS headless benchmark; bot clears 3 opponents in repeated runs).
 
 ## Explicit non-goals for this plan
 - Dismemberment / mesh-cutting.
