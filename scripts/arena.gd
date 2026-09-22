@@ -3,8 +3,10 @@ extends Node3D
 ## without a second combatant (1 = light, 2 = heavy/stagger, 3 = crushing/ragdoll).
 
 const CAM_HEIGHT := 2.6
-const CAM_DISTANCE := 5.5
-const CAM_LAG := 6.0
+const CAM_DISTANCE := 6.0
+const CAM_LAG := 9.0
+const CAM_ZOOM_MIN := 3.2
+const CAM_ZOOM_MAX := 10.0
 const MAX_LOG_LINES := 6
 
 @onready var player: KickbackActor = $Player
@@ -17,6 +19,8 @@ const MAX_LOG_LINES := 6
 ## so the arena scene stays a greybox.
 var health_label: Label
 var death_overlay: Label
+var fps_label: Label
+var _cam_dist := CAM_DISTANCE
 
 ## Peak positional shake in metres at severity 1.0. Small on purpose — camera
 ## shake that reads as "impact" rather than "earthquake" is a few centimetres.
@@ -53,6 +57,9 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_RIGHT:
 		_cam_yaw -= event.relative.x * 0.006
+	elif event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP: _cam_dist = clampf(_cam_dist - 0.6, CAM_ZOOM_MIN, CAM_ZOOM_MAX)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN: _cam_dist = clampf(_cam_dist + 0.6, CAM_ZOOM_MIN, CAM_ZOOM_MAX)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_1:
@@ -86,7 +93,7 @@ func _on_shake_requested(strength: float) -> void:
 func _physics_process(delta: float) -> void:
 	if not player or not camera:
 		return
-	var offset := Vector3(sin(_cam_yaw), 0.0, cos(_cam_yaw)) * CAM_DISTANCE
+	var offset := Vector3(sin(_cam_yaw), 0.0, cos(_cam_yaw)) * _cam_dist
 	var target := player.global_position + offset + Vector3.UP * CAM_HEIGHT
 	camera.global_position = camera.global_position.lerp(target, clampf(CAM_LAG * delta, 0.0, 1.0))
 
@@ -104,6 +111,8 @@ func _physics_process(delta: float) -> void:
 		state_label.text = "State: %s" % player.get_state_name()
 	if health_label:
 		health_label.text = _health_text()
+	if fps_label:
+		fps_label.text = "FPS %d" % Engine.get_frames_per_second()
 
 
 func _on_camera_dragged(delta: Vector2) -> void:
@@ -144,6 +153,14 @@ func _build_hud() -> void:
 	death_overlay.text = "YOU DIED\nPress R to restart"
 	death_overlay.visible = false
 	hud.add_child(death_overlay)
+	fps_label = Label.new()
+	fps_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	fps_label.offset_left = -110.0
+	fps_label.offset_top = 12.0
+	fps_label.offset_right = -16.0
+	fps_label.offset_bottom = 40.0
+	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	hud.add_child(fps_label)
 
 
 func _health_text() -> String:

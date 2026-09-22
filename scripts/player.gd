@@ -20,6 +20,9 @@ func _physics_process(delta: float) -> void:
 	if touch_controls:
 		input_2d = (input_2d + touch_controls.get_move_vector()).limit_length(1.0)
 	move_dir = _camera_relative(input_2d)
+	var sprinting := Input.is_key_pressed(KEY_SHIFT) and input_2d.length() > 0.1
+	move_speed = SPRINT_SPEED if sprinting else WALK_SPEED
+	locomotion_anim = SPRINT_ANIM if sprinting else WALK_ANIM
 	super._physics_process(delta)
 
 	if Input.is_action_just_pressed("attack"):

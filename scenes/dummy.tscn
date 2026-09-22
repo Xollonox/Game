@@ -1,9 +1,9 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
-[ext_resource type="Script" path="res://scripts/enemy.gd" id="1_script"]
-[ext_resource type="PackedScene" uid="uid://kqfdvi6foa51" path="res://assets/models/characters/quaternius_universal/universal_character.glb" id="2_model"]
-
+[ext_resource type="Script" path="res://scripts/enemy.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/models/characters/armored/universal_character_armored.glb" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/sword_enemy.tscn" id="3"]
 [node name="Dummy" type="Node3D" groups=["hittable"]]
-script = ExtResource("1_script")
-
-[node name="Model" parent="." instance=ExtResource("2_model")]
+script=ExtResource("1")
+sword_scene=ExtResource("3")
+[node name="Model" parent="." instance=ExtResource("2")]

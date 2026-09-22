@@ -18,6 +18,7 @@ playable at:
 | Input | Action |
 |---|---|
 | `W` `A` `S` `D`, or the on-screen joystick | Walk (camera-relative) |
+| `Shift` | Sprint |
 | `Space` / left click, or the on-screen SWING button | Sword swing — a real physics-driven blade, not a hitscan; it deals damage from its own measured contact speed |
 | `1` / `2` / `3` | Hit yourself: light / heavy (stagger) / crushing (ragdoll) |
 | Right-drag, `Q` / `E`, or a touch drag on the right side of the screen | Orbit the camera |

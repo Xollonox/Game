@@ -12,8 +12,11 @@ signal died(actor: KickbackActor)
 
 const IDLE_ANIM := "Sword_Idle"
 const WALK_ANIM := "Walk"
-const WALK_SPEED := 1.8
-const TURN_SPEED := 10.0
+const SPRINT_ANIM := "Sprint"
+const WALK_SPEED := 2.7
+const SPRINT_SPEED := 4.6
+const TURN_SPEED := 14.0
+const FOOTSTEP_DISTANCE := 1.45
 const SWORD_SCENE := preload("res://scenes/sword.tscn")
 
 @onready var model: Node3D = $Model
@@ -23,6 +26,7 @@ const SWORD_SCENE := preload("res://scenes/sword.tscn")
 @export var tuning_preset := "stand"
 ## Spawns a physics sword and grip-follows it to this actor's Hand_R bone.
 @export var carries_sword := true
+@export var sword_scene: PackedScene = SWORD_SCENE
 
 ## PLAN.md Phase 6: a readout-grade health model. Damage is keyed off the
 ## impact profile that actually fired, so what drains the bar is the same tier
@@ -41,12 +45,15 @@ var sword: PhysicsSword
 
 ## Desired planar movement direction, set by subclasses each physics frame.
 var move_dir := Vector3.ZERO
+var move_speed := WALK_SPEED
+var locomotion_anim := WALK_ANIM
 
 var _controller: ActiveRagdollController
 var _rig_builder: PhysicsRigBuilder
 var _flinch_timer := 0.0
 var _attack_timer := 0.0
 var _downed := false
+var _step_distance := 0.0
 
 
 func _ready() -> void:
@@ -113,7 +120,7 @@ func _ready() -> void:
 ## spring-follows the hand, so parenting it under an actor that itself moves
 ## would double-apply that motion.
 func _spawn_sword() -> void:
-	sword = SWORD_SCENE.instantiate()
+	sword = sword_scene.instantiate()
 	# Safe to add directly rather than deferred — the wait above already put us
 	# past the parent's own _ready() traversal.
 	get_parent().add_child(sword)
@@ -133,9 +140,15 @@ func _physics_process(delta: float) -> void:
 
 	if move_dir.length_squared() > 0.01:
 		var dir := move_dir.normalized()
-		global_position += dir * WALK_SPEED * delta
+		global_position += dir * move_speed * delta
 		var target_yaw := atan2(dir.x, dir.z)
 		rotation.y = lerp_angle(rotation.y, target_yaw, TURN_SPEED * delta)
+		_step_distance += move_speed * delta
+		if _step_distance >= FOOTSTEP_DISTANCE:
+			_step_distance = 0.0
+			CombatFX.play_footstep(global_position)
+	else:
+		_step_distance = FOOTSTEP_DISTANCE * 0.6
 
 	_update_locomotion_anim()
 
@@ -143,7 +156,7 @@ func _physics_process(delta: float) -> void:
 func _update_locomotion_anim() -> void:
 	if not anim or _flinch_timer > 0.0 or _attack_timer > 0.0:
 		return
-	var want := WALK_ANIM if move_dir.length_squared() > 0.01 else IDLE_ANIM
+	var want := locomotion_anim if move_dir.length_squared() > 0.01 else IDLE_ANIM
 	if anim.current_animation != want:
 		anim.play(want, 0.2)
 
@@ -153,8 +166,8 @@ func _update_locomotion_anim() -> void:
 func swing() -> bool:
 	if _downed or _attack_timer > 0.0 or not anim:
 		return false
-	anim.play("Sword_Attack", 0.1)
-	_attack_timer = 0.9
+	anim.play("Sword_Attack", 0.1, 1.2)
+	_attack_timer = 0.75
 	return true
 
 

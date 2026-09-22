@@ -43,3 +43,12 @@ itch.io's "name your own price" pages (including $0/free CC0 items) require clic
 ## Other sources identified in research (not yet pulled)
 
 See `research.md` §4 for the full list, including Poly Haven weapon models, OpenGameArt's "CC0 - 3D Weapons" and "Cethiel's Weapons 3D", and Freesound.org for supplemental foley — pull from these only under the CC0/CC-BY rule above, and add an entry here for anything added.
+
+## Kenney CC0 assets
+- Impact Sounds — footsteps and metal plate impacts
+- Castle Kit, Fantasy Town Kit, Survival Kit — arena props
+- Creator: Kenney (https://kenney.nl/)
+- License: CC0 1.0 Universal
+
+## Generated derivatives
+- Fixed sword pivots/scales and armored character GLB were built headlessly in Blender from the repository's original CC0 assets.

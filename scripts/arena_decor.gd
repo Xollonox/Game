@@ -44,6 +44,7 @@ func _ready() -> void:
 	_build_pillars(dark_stone)
 	_build_crates(wood)
 	_build_torches()
+	_build_cc0_props()
 
 
 func _process(delta: float) -> void:
@@ -201,6 +202,29 @@ func _build_torches() -> void:
 		_torches.append(light)
 		_torch_phase.append(_rng.randf() * TAU)
 		_torch_base.append(light.light_energy)
+
+
+func _build_cc0_props() -> void:
+	var specs := [
+		["res://assets/models/props/town/banner-red.glb", Vector3(-8.5, 1.8, -8.0), 0.5, 0.0],
+		["res://assets/models/props/town/banner-green.glb", Vector3(8.5, 1.8, -8.0), 0.5, 0.0],
+		["res://assets/models/props/town/cart.glb", Vector3(8.2, 0.0, 5.0), 1.0, -1.0],
+		["res://assets/models/props/town/fence.glb", Vector3(-9.0, 0.0, 4.2), 1.0, 0.3],
+		["res://assets/models/props/survival/campfire-pit.glb", Vector3(-7.0, 0.0, 6.2), 1.0, 0.0],
+		["res://assets/models/props/survival/chest.glb", Vector3(7.5, 0.0, -5.0), 1.0, 0.5],
+		["res://assets/models/props/survival/barrel.glb", Vector3(7.0, 0.0, -6.0), 1.0, 0.0],
+		["res://assets/models/props/survival/box-large.glb", Vector3(8.0, 0.0, -6.1), 1.0, 0.2],
+		["res://assets/models/props/survival/bucket.glb", Vector3(-6.3, 0.0, 6.0), 1.0, 0.0],
+		["res://assets/models/props/castle/rocks-large.glb", Vector3(-8.0, 0.0, -5.8), 1.0, 0.0],
+		["res://assets/models/props/castle/rocks-small.glb", Vector3(6.5, 0.0, 7.0), 1.0, 0.0],
+	]
+	for s in specs:
+		if not ResourceLoader.exists(s[0]): continue
+		var prop := (load(s[0]) as PackedScene).instantiate()
+		prop.position = s[1]
+		prop.scale = Vector3.ONE * s[2]
+		prop.rotation.y = s[3]
+		add_child(prop)
 
 
 static func _material(albedo: Color, roughness: float) -> StandardMaterial3D:

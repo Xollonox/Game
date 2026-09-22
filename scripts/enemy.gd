@@ -18,15 +18,15 @@ enum State { IDLE, APPROACH, WINDUP, RECOVER }
 ## Beyond this the enemy ignores the target entirely.
 @export var aggro_range := 15.0
 ## Distance it wants to be at before committing to a swing.
-@export var strike_range := 2.0
+@export var strike_range := 1.75
 ## Held back to just outside strike range so it doesn't walk into its own blade.
-@export var spacing := 1.5
+@export var spacing := 1.4
 ## Seconds between spotting the target in range and actually swinging — this is
 ## the entire "difficulty" knob, and what keeps several enemies from swinging in
 ## perfect unison.
-@export var windup := 0.45
+@export var windup := 0.6
 ## Seconds of backing off after a swing, during which it won't attack again.
-@export var recover_time := 1.1
+@export var recover_time := 1.45
 
 ## How close two enemies get before they start pushing apart. Without this they
 ## all take the same straight line to the target, arrive as one clump, and

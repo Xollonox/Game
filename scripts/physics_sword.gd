@@ -24,9 +24,9 @@ extends RigidBody3D
 signal landed_hit(target_name: String, profile_name: String)
 
 const REFERENCE_HZ := 60.0
-const LINEAR_STIFFNESS := 55.0
-const ANGULAR_STIFFNESS := 40.0
-const SPRING_WEIGHT := 0.4
+const LINEAR_STIFFNESS := 85.0
+const ANGULAR_STIFFNESS := 60.0
+const SPRING_WEIGHT := 0.55
 const STUCK_STIFFNESS_SCALE := 0.12
 const STUCK_DURATION := 0.35
 const HIT_COOLDOWN := 0.4
@@ -40,16 +40,9 @@ const MIN_HIT_SPEED := 1.2
 ## exceptionally hard hits, not the routine ones.
 const STICK_SPEED := 14.0
 
-## Local-space offset from the hand bone's transform to where the grip should
-## sit. sword_1.fbx ships ~10x oversized with its pivot mid-blade, not at the
-## grip — see the PR description for the measured correction (scale 0.1,
-## rotate -90° about Y so the blade points local -Z, then push the grip to the
-## origin). Baked into the child MeshInstance's own transform in sword.tscn;
-## this offset just seats the grip in the hand instead of the palm surface.
-@export var grip_offset := Transform3D(Basis(), Vector3(0.02, 0.0, 0.06))
-## Approximate blade tip in the RigidBody3D's own local space, used for tip
-## (not center-of-mass) velocity — where the edge actually lands.
-@export var tip_local := Vector3(0.0, -0.05, -0.66)
+## Blender-fixed swords have the grip midpoint at origin and blade on local -Z.
+@export var grip_offset := Transform3D(Basis(), Vector3(0.0, 0.03, 0.0))
+@export var tip_local := Vector3(0.0, 0.0, -0.89)
 
 ## Tip speed (m/s) that counts as a committed swing worth a whoosh.
 const SWISH_SPEED := 5.0

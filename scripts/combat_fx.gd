@@ -33,6 +33,17 @@ const SWISH_SOUNDS := [
 	"res://assets/sfx/battle/battle_sfx/battle_sound_effects/swish_3.wav",
 	"res://assets/sfx/battle/battle_sfx/battle_sound_effects/swish_4.wav",
 ]
+const CLASH_SOUNDS := [
+	"res://assets/sfx/kenney/metal/impactPlate_heavy_000.ogg",
+	"res://assets/sfx/kenney/metal/impactPlate_heavy_001.ogg",
+	"res://assets/sfx/kenney/metal/impactPlate_heavy_002.ogg",
+]
+const FOOTSTEP_SOUNDS := [
+	"res://assets/sfx/kenney/footsteps/footstep_concrete_000.ogg",
+	"res://assets/sfx/kenney/footsteps/footstep_concrete_001.ogg",
+	"res://assets/sfx/kenney/footsteps/footstep_concrete_002.ogg",
+	"res://assets/sfx/kenney/footsteps/footstep_concrete_003.ogg",
+]
 
 var _bursts: Array[CPUParticles3D] = []
 var _next_burst := 0
@@ -44,6 +55,9 @@ var _next_player := 0
 
 var _hit_streams: Array[AudioStream] = []
 var _swish_streams: Array[AudioStream] = []
+var _clash_streams: Array[AudioStream] = []
+var _footstep_streams: Array[AudioStream] = []
+var _blood_enabled := true
 var _rng := RandomNumberGenerator.new()
 
 ## Hit-stop deadline in *real* milliseconds. Engine.time_scale is what produces
@@ -54,6 +68,7 @@ var _hitstop_until_ms := 0
 
 func _ready() -> void:
 	_rng.randomize()
+	_blood_enabled = not OS.get_cmdline_user_args().has("--noblood")
 	var blood_tex := _make_blood_texture()
 	_build_bursts()
 	_build_splats(blood_tex)
@@ -62,8 +77,11 @@ func _ready() -> void:
 		if ResourceLoader.exists(path):
 			_hit_streams.append(load(path))
 	for path in SWISH_SOUNDS:
-		if ResourceLoader.exists(path):
-			_swish_streams.append(load(path))
+		if ResourceLoader.exists(path): _swish_streams.append(load(path))
+	for path in CLASH_SOUNDS:
+		if ResourceLoader.exists(path): _clash_streams.append(load(path))
+	for path in FOOTSTEP_SOUNDS:
+		if ResourceLoader.exists(path): _footstep_streams.append(load(path))
 
 
 func _process(_delta: float) -> void:
@@ -94,6 +112,8 @@ func impact(pos: Vector3, dir: Vector3, severity: float) -> void:
 
 ## Blood burst plus a ground splat under the impact.
 func spray(pos: Vector3, dir: Vector3, severity: float) -> void:
+	if not _blood_enabled:
+		return
 	if _bursts.is_empty():
 		return
 	var p := _bursts[_next_burst]
@@ -139,13 +159,22 @@ func play_hit(pos: Vector3, severity: float) -> void:
 ## set pitched past 1.5x reads as metal-on-metal, and it keeps the asset ledger
 ## unchanged.
 func play_clash(pos: Vector3, intensity: float) -> void:
-	if _hit_streams.is_empty():
-		return
+	if _clash_streams.is_empty(): return
 	var pl := _take_player()
-	pl.stream = _hit_streams[_rng.randi() % _hit_streams.size()]
+	pl.stream = _clash_streams[_rng.randi() % _clash_streams.size()]
 	pl.global_position = pos
-	pl.pitch_scale = lerpf(1.55, 1.9, clampf(intensity, 0.0, 1.0)) * _rng.randf_range(0.95, 1.05)
-	pl.volume_db = lerpf(-12.0, -4.0, clampf(intensity, 0.0, 1.0))
+	pl.pitch_scale = lerpf(1.05, 0.82, clampf(intensity, 0.0, 1.0)) * _rng.randf_range(0.96, 1.04)
+	pl.volume_db = lerpf(-12.0, -3.0, clampf(intensity, 0.0, 1.0))
+	pl.play()
+
+
+func play_footstep(pos: Vector3) -> void:
+	if _footstep_streams.is_empty(): return
+	var pl := _take_player()
+	pl.stream = _footstep_streams[_rng.randi() % _footstep_streams.size()]
+	pl.global_position = pos
+	pl.pitch_scale = _rng.randf_range(0.92, 1.08)
+	pl.volume_db = -14.0
 	pl.play()
 
 
