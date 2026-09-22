@@ -1,48 +1,72 @@
 # Game
 
-A game project built with Godot Engine 4.7+ (Latest)
+A physics-driven melee combat game in the spirit of [Half Sword](https://store.steampowered.com/app/2397300/Half_Sword/),
+built with Godot 4.7 and Jolt physics. Characters are **active ragdolls**: the
+body is a real physics rig that chases an animated pose, so a solid hit
+overpowers it and the character staggers, goes down, and picks itself back up —
+no canned knockdown animations.
 
-## Getting Started
+## Play in the browser
 
-### Quick Install
+Once GitHub Pages is enabled (see below), the build in [`docs/`](docs/) is
+playable at:
 
-Run the included installation script to get the latest Godot Engine:
+**https://xollonox.github.io/Game/**
+
+### Controls
+
+| Input | Action |
+|---|---|
+| `W` `A` `S` `D` | Walk (camera-relative) |
+| `Space` / left click | Sword swing — knocks down a dummy in front of you |
+| `1` / `2` / `3` | Hit yourself: light / heavy (stagger) / crushing (ragdoll) |
+| Right-drag, or `Q` / `E` | Orbit the camera |
+
+## Running from source
+
+Install Godot 4.7+ (`./install-godot.sh`, or see [INSTALLATION.md](INSTALLATION.md)), then:
 
 ```bash
-./install-godot.sh
+godot project.godot      # open in the editor
+godot --headless --path . # run headless
 ```
 
-Then open the project:
+## Re-exporting the web build
+
+The playable build in `docs/` is committed so GitHub Pages needs no toolchain in
+CI. After changing the game, re-export and commit it:
+
 ```bash
-godot project.godot
+godot --headless --import
+godot --headless --export-release "Web" docs/index.html
 ```
 
-### Manual Installation
+Thread support is deliberately **off** in the export preset: Godot's threaded
+web build needs `SharedArrayBuffer`, which requires `Cross-Origin-Opener-Policy`
+and `Cross-Origin-Embedder-Policy` response headers — and GitHub Pages cannot
+set custom headers. The single-threaded build runs there without them.
 
-See [INSTALLATION.md](INSTALLATION.md) for detailed installation instructions.
+## Enabling GitHub Pages (one-time)
 
-### Running the Game
+Repository **Settings → Pages**, then either:
 
-1. Open this project in Godot (Godot 4.7+)
-2. Click the Play button (▶) to run the game
+- **Source: GitHub Actions** — `.github/workflows/pages.yml` publishes `docs/` on
+  every push to `main`, or
+- **Source: Deploy from a branch** → branch `main`, folder `/docs`.
 
-## Project Structure
+## Project layout
 
-- `scenes/` - Game scenes and UI layouts
-- `scripts/` - GDScript code
-- `assets/` - Images, sounds, and other resources
-- `project.godot` - Project configuration file
+| Path | What's in it |
+|---|---|
+| `scenes/` | `arena.tscn` (the playable scene), `player.tscn`, `dummy.tscn` |
+| `scripts/` | `kickback_actor.gd` (shared ragdoll actor), `player.gd`, `arena.gd`, `combat_profiles.gd` |
+| `addons/kickback/` | Active-ragdoll plugin (MIT) — see `assets/CREDITS.md` |
+| `assets/` | Models, animations and SFX, all CC0 — provenance in `assets/CREDITS.md` |
+| `docs/` | Exported web build served by GitHub Pages |
+| `research.md` | How Half Sword's combat works and how to reproduce it |
+| `PLAN.md` | Phased build plan and current status |
 
-## Development
+## Licensing
 
-This project is set up and ready for game development. Start by creating your first scene in the `scenes/` directory.
-
-## License
-
-TBD
-
-## Support
-
-For Godot documentation and tutorials, visit:
-- https://docs.godotengine.org/
-- https://godotengine.org/
+Project code is unlicensed so far (TBD). Every third-party asset and addon is
+CC0 or MIT, tracked with its source in [`assets/CREDITS.md`](assets/CREDITS.md).
