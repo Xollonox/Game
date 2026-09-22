@@ -1,8 +1,29 @@
 # Godot Engine Installation Guide
 
-This is a Godot game project. To develop and run this game, you need to install Godot Engine.
+This is a Godot game project. To develop and run this game, you need to install Godot Engine 4.3+ (latest stable).
 
-## Installation Instructions
+## Quick Installation (Recommended)
+
+Run the included installation script to download and install the latest Godot Engine:
+
+```bash
+chmod +x install-godot.sh
+./install-godot.sh
+```
+
+This script will:
+- Detect your OS (Linux, macOS, Windows)
+- Download the latest stable Godot 4.3+
+- Extract it to `~/.godot/`
+- Create a symlink at `~/.local/bin/godot`
+- Guide you to add it to your PATH if needed
+
+After installation, open the project with:
+```bash
+godot project.godot
+```
+
+## Manual Installation Instructions
 
 ### Option 1: Download from Official Website (Recommended)
 

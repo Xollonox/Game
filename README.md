@@ -1,16 +1,30 @@
 # Game
 
-A game project built with Godot Engine 4.2+
+A game project built with Godot Engine 4.3+ (Latest)
 
 ## Getting Started
 
+### Quick Install
+
+Run the included installation script to get the latest Godot Engine:
+
+```bash
+./install-godot.sh
+```
+
+Then open the project:
+```bash
+godot project.godot
+```
+
+### Manual Installation
+
 See [INSTALLATION.md](INSTALLATION.md) for detailed installation instructions.
 
-### Quick Start
+### Running the Game
 
-1. Install Godot Engine 4.2+
-2. Open this project in Godot
-3. Click the Play button (▶) to run the game
+1. Open this project in Godot (Godot 4.3+)
+2. Click the Play button (▶) to run the game
 
 ## Project Structure
 
