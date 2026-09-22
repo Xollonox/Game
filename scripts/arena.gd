@@ -34,6 +34,11 @@ func _ready() -> void:
 	if touch_controls:
 		touch_controls.camera_dragged.connect(_on_camera_dragged)
 	CombatFX.shake_requested.connect(_on_shake_requested)
+
+	for node in get_tree().get_nodes_in_group("hittable"):
+		if node is Enemy:
+			node.target = player
+			node.landed_hit.connect(_on_enemy_landed_hit)
 	_log_line("WASD/joystick move · SPACE/button swing · 1/2/3 hit self · drag orbit")
 
 
@@ -94,6 +99,10 @@ func _on_camera_dragged(delta: Vector2) -> void:
 
 func _on_landed_hit(target_name: String, profile_name: String) -> void:
 	_log_line("hit %s with %s" % [target_name, profile_name])
+
+
+func _on_enemy_landed_hit(target_name: String, profile_name: String) -> void:
+	_log_line("%s took %s" % [target_name, profile_name])
 
 
 func _log_line(text: String) -> void:

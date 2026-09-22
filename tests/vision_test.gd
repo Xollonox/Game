@@ -35,12 +35,14 @@ func _ready() -> void:
 		[0.4, "02_swing", func(): _arena.player.swing()],
 		[0.35, "03_swing_mid", func(): pass],
 		[0.5, "04_swing_follow", func(): pass],
-		[0.6, "05_light_hit", func(): _arena._hit_player(CombatProfiles.light_swing(), 0.25)],
-		[0.9, "06_heavy_hit", func(): _arena._hit_player(CombatProfiles.heavy_swing(), 0.65)],
-		[0.9, "07_crushing", func(): _arena._hit_player(CombatProfiles.crushing_blow(), 1.0)],
-		[0.5, "08_crushing_blood", func(): pass],
-		[2.0, "09_downed", func(): pass],
-		[3.0, "10_recovered", func(): pass],
+		# The enemies close on their own from here — nothing below drives them.
+		[1.6, "05_enemies_closing", func(): pass],
+		[1.4, "06_engaged", func(): pass],
+		[1.4, "07_melee", func(): pass],
+		[1.4, "08_melee_2", func(): pass],
+		[0.8, "09_crushing", func(): _arena._hit_player(CombatProfiles.crushing_blow(), 1.0)],
+		[2.2, "10_downed", func(): pass],
+		[3.0, "11_recovered", func(): pass],
 	]
 
 

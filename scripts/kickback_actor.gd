@@ -7,20 +7,26 @@ extends Node3D
 ## and call `swing()`; this class owns the rig, the animation state machine and
 ## the stagger/ragdoll/recovery signal handling.
 
+signal landed_hit(target_name: String, profile_name: String)
+
 const IDLE_ANIM := "Sword_Idle"
 const WALK_ANIM := "Walk"
 const WALK_SPEED := 1.8
 const TURN_SPEED := 10.0
+const SWORD_SCENE := preload("res://scenes/sword.tscn")
 
 @onready var model: Node3D = $Model
 
 ## Which RagdollTuning preset to build the rig with. Set before the node enters
 ## the tree. See `_make_tuning()` for the supported names.
 @export var tuning_preset := "stand"
+## Spawns a physics sword and grip-follows it to this actor's Hand_R bone.
+@export var carries_sword := true
 
 var kickback_character: KickbackCharacter
 var anim: AnimationPlayer
 var skeleton: Skeleton3D
+var sword: PhysicsSword
 
 ## Desired planar movement direction, set by subclasses each physics frame.
 var move_dir := Vector3.ZERO
@@ -86,6 +92,23 @@ func _ready() -> void:
 		await get_tree().process_frame
 	for body: RigidBody3D in _rig_builder.get_bodies().values():
 		body.set_meta(&"kickback_actor", self)
+
+	if carries_sword:
+		_spawn_sword()
+
+
+## Spawns the blade as a sibling, not a child: it's a free RigidBody3D that
+## spring-follows the hand, so parenting it under an actor that itself moves
+## would double-apply that motion.
+func _spawn_sword() -> void:
+	sword = SWORD_SCENE.instantiate()
+	# Safe to add directly rather than deferred — the wait above already put us
+	# past the parent's own _ready() traversal.
+	get_parent().add_child(sword)
+	sword.attach_to(self)
+	sword.landed_hit.connect(
+		func(target_name: String, profile_name: String) -> void:
+			landed_hit.emit(target_name, profile_name))
 
 
 func _physics_process(delta: float) -> void:

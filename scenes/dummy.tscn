@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://scripts/kickback_actor.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/enemy.gd" id="1_script"]
 [ext_resource type="PackedScene" uid="uid://kqfdvi6foa51" path="res://assets/models/characters/quaternius_universal/universal_character.glb" id="2_model"]
 
 [node name="Dummy" type="Node3D" groups=["hittable"]]
