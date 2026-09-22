@@ -181,6 +181,9 @@ func _build_bursts() -> void:
 	# red squares (caught in the first vision test, invisible to state checks).
 	mat.billboard_keep_scale = true
 	mat.disable_receive_shadows = true
+	# Without this the quads render as hard-edged squares — unmistakably
+	# rectangles of red rather than droplets, even at 3 cm.
+	mat.albedo_texture = _make_droplet_texture()
 
 	var quad := QuadMesh.new()
 	quad.size = Vector2.ONE
@@ -239,6 +242,18 @@ func _build_audio() -> void:
 		pl.max_distance = 35.0
 		add_child(pl)
 		_players.append(pl)
+
+
+## Soft round falloff, white so the particle's own colour tints it.
+static func _make_droplet_texture() -> ImageTexture:
+	const SIZE := 32
+	var img := Image.create(SIZE, SIZE, false, Image.FORMAT_RGBA8)
+	var centre := Vector2(SIZE * 0.5, SIZE * 0.5)
+	for y in SIZE:
+		for x in SIZE:
+			var d := Vector2(x + 0.5, y + 0.5).distance_to(centre) / (SIZE * 0.5)
+			img.set_pixel(x, y, Color(1, 1, 1, pow(clampf(1.0 - d, 0.0, 1.0), 0.75)))
+	return ImageTexture.create_from_image(img)
 
 
 ## Procedural splat: one core blob with a ring of smaller satellites, so it

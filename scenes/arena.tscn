@@ -4,10 +4,15 @@
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
 [ext_resource type="PackedScene" path="res://scenes/dummy.tscn" id="3_dummy"]
 [ext_resource type="Script" path="res://scripts/touch_controls.gd" id="4_touch"]
+[ext_resource type="Script" path="res://scripts/arena_decor.gd" id="5_decor"]
 
 [sub_resource type="ProceduralSkyMaterial" id="Sky_1"]
-sky_horizon_color = Color(0.64625, 0.65575, 0.67075, 1)
-ground_horizon_color = Color(0.64625, 0.65575, 0.67075, 1)
+sky_top_color = Color(0.17, 0.19, 0.26, 1)
+sky_horizon_color = Color(0.42, 0.36, 0.33, 1)
+ground_bottom_color = Color(0.09, 0.09, 0.1, 1)
+ground_horizon_color = Color(0.32, 0.28, 0.26, 1)
+sun_angle_max = 22.0
+sun_curve = 0.18
 
 [sub_resource type="Sky" id="SkyRes_1"]
 sky_material = SubResource("Sky_1")
@@ -15,15 +20,26 @@ sky_material = SubResource("Sky_1")
 [sub_resource type="Environment" id="Env_1"]
 background_mode = 2
 sky = SubResource("SkyRes_1")
-tonemap_mode = 2
+ambient_light_source = 3
+ambient_light_energy = 0.55
+tonemap_mode = 3
+tonemap_white = 4.0
 ssao_enabled = true
+ssao_intensity = 1.6
+fog_enabled = true
+fog_light_color = Color(0.36, 0.33, 0.33, 1)
+fog_density = 0.022
+fog_sky_affect = 0.35
+adjustment_enabled = true
+adjustment_contrast = 1.12
+adjustment_saturation = 0.92
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
 size = Vector2(40, 40)
 
 [sub_resource type="StandardMaterial3D" id="Material_ground"]
-albedo_color = Color(0.32, 0.34, 0.3, 1)
-roughness = 0.9
+albedo_color = Color(0.16, 0.15, 0.14, 1)
+roughness = 0.95
 
 [sub_resource type="WorldBoundaryShape3D" id="WorldBoundary_ground"]
 
@@ -73,7 +89,12 @@ environment = SubResource("Env_1")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.866, -0.354, 0.354, 0, 0.707, 0.707, -0.5, -0.612, 0.612, 2, 10, 2)
+light_color = Color(1, 0.86, 0.68, 1)
+light_energy = 1.35
 shadow_enabled = true
+
+[node name="ArenaDecor" type="Node3D" parent="."]
+script = ExtResource("5_decor")
 
 [node name="Ground" type="StaticBody3D" parent="."]
 collision_layer = 1
