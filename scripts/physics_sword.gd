@@ -48,11 +48,17 @@ const STICK_SPEED := 14.0
 ## (not center-of-mass) velocity — where the edge actually lands.
 @export var tip_local := Vector3(0.0, -0.05, -0.66)
 
+## Tip speed (m/s) that counts as a committed swing worth a whoosh.
+const SWISH_SPEED := 5.0
+const SWISH_COOLDOWN := 0.45
+
 var wielder: KickbackActor
 var grip_body: RigidBody3D
 
 var _stuck_timer := 0.0
 var _hit_cooldown := 0.0
+var _swish_cooldown := 0.0
+var _trail: SwordTrail
 
 
 func _ready() -> void:
@@ -60,6 +66,11 @@ func _ready() -> void:
 	max_contacts_reported = 4
 	can_sleep = false
 	top_level = true
+
+	_trail = SwordTrail.new()
+	_trail.source = self
+	_trail.tip_local = tip_local
+	add_child(_trail)
 
 
 ## Grip-follows [param actor]'s [param hand_rig_name] bone and excludes
@@ -78,10 +89,18 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	var delta := state.get_step()
 	_stuck_timer = maxf(0.0, _stuck_timer - delta)
 	_hit_cooldown = maxf(0.0, _hit_cooldown - delta)
+	_swish_cooldown = maxf(0.0, _swish_cooldown - delta)
 
 	# Check hits with the velocity that produced this step's contacts, before
 	# it gets overwritten below by this tick's spring command.
 	_check_hits(state)
+
+	if _swish_cooldown <= 0.0:
+		var tip_speed := _tip_velocity_from(
+			state.linear_velocity, state.angular_velocity, state.transform.basis).length()
+		if tip_speed >= SWISH_SPEED:
+			_swish_cooldown = SWISH_COOLDOWN
+			CombatFX.play_swish(state.transform.origin, (tip_speed - SWISH_SPEED) / 15.0)
 
 	if not grip_body:
 		return
@@ -151,6 +170,11 @@ func _check_hits(state: PhysicsDirectBodyState3D) -> void:
 		var profile := CombatProfiles.profile_for_impact(speed, rig_name)
 		target_actor.receive_hit_at(rig_name, tip_vel / speed, profile)
 		landed_hit.emit(target_actor.name, String(profile.profile_name))
+
+		CombatFX.impact(
+			state.get_contact_collider_position(i),
+			tip_vel / speed,
+			CombatProfiles.severity_for(speed, rig_name))
 
 		if speed >= STICK_SPEED:
 			_stuck_timer = STUCK_DURATION

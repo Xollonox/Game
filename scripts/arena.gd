@@ -13,11 +13,19 @@ const MAX_LOG_LINES := 6
 @onready var log_label: Label = $HUD/LogLabel
 @onready var touch_controls: TouchControls = $TouchControls
 
+## Peak positional shake in metres at severity 1.0. Small on purpose — camera
+## shake that reads as "impact" rather than "earthquake" is a few centimetres.
+const SHAKE_AMPLITUDE := 0.22
+const SHAKE_DECAY := 5.0
+
 var _cam_yaw := 0.0
 var _log: Array[String] = []
+var _shake := 0.0
+var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
+	_rng.randomize()
 	if player:
 		player.camera = camera
 		player.touch_controls = touch_controls
@@ -25,6 +33,7 @@ func _ready() -> void:
 			player.landed_hit.connect(_on_landed_hit)
 	if touch_controls:
 		touch_controls.camera_dragged.connect(_on_camera_dragged)
+	CombatFX.shake_requested.connect(_on_shake_requested)
 	_log_line("WASD/joystick move · SPACE/button swing · 1/2/3 hit self · drag orbit")
 
 
@@ -34,23 +43,28 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_1:
-				_hit_player(CombatProfiles.light_swing())
+				_hit_player(CombatProfiles.light_swing(), 0.25)
 			KEY_2:
-				_hit_player(CombatProfiles.heavy_swing())
+				_hit_player(CombatProfiles.heavy_swing(), 0.65)
 			KEY_3:
-				_hit_player(CombatProfiles.crushing_blow())
+				_hit_player(CombatProfiles.crushing_blow(), 1.0)
 			KEY_Q:
 				_cam_yaw += 0.25
 			KEY_E:
 				_cam_yaw -= 0.25
 
 
-func _hit_player(profile: ImpactProfile) -> void:
+func _hit_player(profile: ImpactProfile, severity: float) -> void:
 	if not player:
 		return
 	var dir := -player.global_basis.z
 	player.receive_hit_at("Chest", dir, profile)
+	CombatFX.impact(player.global_position + Vector3.UP * 1.25, dir, severity)
 	_log_line("self-hit: %s" % profile.profile_name)
+
+
+func _on_shake_requested(strength: float) -> void:
+	_shake = maxf(_shake, clampf(strength, 0.0, 1.0))
 
 
 func _physics_process(delta: float) -> void:
@@ -59,6 +73,15 @@ func _physics_process(delta: float) -> void:
 	var offset := Vector3(sin(_cam_yaw), 0.0, cos(_cam_yaw)) * CAM_DISTANCE
 	var target := player.global_position + offset + Vector3.UP * CAM_HEIGHT
 	camera.global_position = camera.global_position.lerp(target, clampf(CAM_LAG * delta, 0.0, 1.0))
+
+	# Shake is applied after the follow lerp, not folded into the target, so it
+	# jitters the camera without the smoothing eating it.
+	if _shake > 0.0:
+		_shake = maxf(0.0, _shake - SHAKE_DECAY * delta)
+		var k := _shake * _shake * SHAKE_AMPLITUDE
+		camera.global_position += Vector3(
+			_rng.randfn(0.0, 1.0), _rng.randfn(0.0, 1.0), _rng.randfn(0.0, 1.0)) * k
+
 	camera.look_at(player.global_position + Vector3.UP * 1.0)
 
 	if state_label:

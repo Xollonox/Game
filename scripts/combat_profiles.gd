@@ -47,14 +47,33 @@ const _DEFAULT_LOCATION_WEIGHT := 0.7
 ## where it landed, instead of a fixed distance-tier (see player.gd's old
 ## _resolve_swing raycast, which this replaces for weapon hits).
 static func profile_for_impact(speed: float, rig_name: String) -> ImpactProfile:
-	var weight: float = _LOCATION_WEIGHT.get(StringName(rig_name), _DEFAULT_LOCATION_WEIGHT)
-	var effective := speed * weight
+	var effective := effective_speed(speed, rig_name)
 	if effective >= CRUSHING_SPEED:
 		return crushing_blow()
 	elif effective >= HEAVY_SPEED:
 		return heavy_swing()
 	else:
 		return light_swing()
+
+
+## Blade speed after hit-location weighting — the number both the tier lookup
+## and the feedback scaling read, so what you see matches what the rig felt.
+static func effective_speed(speed: float, rig_name: String) -> float:
+	var weight: float = _LOCATION_WEIGHT.get(StringName(rig_name), _DEFAULT_LOCATION_WEIGHT)
+	return speed * weight
+
+
+## Continuous 0..1 severity for the same hit, for feedback that shouldn't jump
+## in three steps the way the profile tiers do: blood volume, shake, hit-stop
+## length and audio pitch all scale off this. The tier boundaries sit at 0.5
+## and 0.8 so the curve still lines up with which profile actually fired.
+static func severity_for(speed: float, rig_name: String) -> float:
+	var effective := effective_speed(speed, rig_name)
+	if effective >= CRUSHING_SPEED:
+		return clampf(0.8 + (effective - CRUSHING_SPEED) / 15.0, 0.8, 1.0)
+	elif effective >= HEAVY_SPEED:
+		return lerpf(0.5, 0.8, (effective - HEAVY_SPEED) / (CRUSHING_SPEED - HEAVY_SPEED))
+	return lerpf(0.1, 0.5, clampf(effective / HEAVY_SPEED, 0.0, 1.0))
 
 
 static func _make(pname: StringName, impulse: float, transfer: float, upward: float,

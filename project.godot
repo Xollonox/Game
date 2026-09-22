@@ -16,6 +16,10 @@ run/main_scene="res://scenes/arena.tscn"
 config/features=PackedStringArray("4.7")
 config/icon="res://icon.svg"
 
+[autoload]
+
+CombatFX="*res://scripts/combat_fx.gd"
+
 [debug]
 
 gdscript/warnings/unused_variable=1
