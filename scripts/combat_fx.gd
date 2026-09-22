@@ -179,6 +179,16 @@ func play_footstep(pos: Vector3) -> void:
 	pl.pitch_scale = _rng.randf_range(0.92, 1.08)
 	pl.volume_db = -14.0
 	pl.play()
+	# Armour layer: a fighter in plate is never silent. One in three steps also
+	# rings a quiet plate impact, pitched out of the clash set — same asset
+	# ledger, and it is what makes the fighters read as armoured.
+	if not _clash_streams.is_empty() and _rng.randf() < 0.34:
+		var metal := _take_player()
+		metal.stream = _clash_streams[_rng.randi() % _clash_streams.size()]
+		metal.global_position = pos
+		metal.pitch_scale = _rng.randf_range(1.35, 1.6)
+		metal.volume_db = -21.0
+		metal.play()
 
 
 ## Drops Engine.time_scale for [param duration] real seconds. Re-entrant: a

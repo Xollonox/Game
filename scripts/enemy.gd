@@ -40,6 +40,12 @@ var _state := State.IDLE
 var _timer := 0.0
 var _strafe := 1.0
 var _peers: Array[Enemy] = []
+## Staggered opening: without it every opponent commits on the same frame and
+## the fight opens as a pile-on, which reads as unfair and looks like a scrum
+## rather than a duel. Each fighter waits a beat of their own before engaging,
+## so the fight escalates instead of starting at full pressure. Set once in
+## _ready() and never re-armed, or the fighters would keep pausing mid-duel.
+var _engage_delay := 0.0
 
 
 func _ready() -> void:
@@ -49,6 +55,7 @@ func _ready() -> void:
 	windup *= randf_range(0.75, 1.4)
 	recover_time *= randf_range(0.8, 1.3)
 	_strafe = 1.0 if randf() < 0.5 else -1.0
+	_engage_delay = randf_range(0.5, 2.8)
 
 
 func _physics_process(delta: float) -> void:
@@ -58,6 +65,13 @@ func _physics_process(delta: float) -> void:
 
 func _tick_ai(delta: float) -> void:
 	_timer = maxf(0.0, _timer - delta)
+
+	# Hold back through the opening beat, then join the fight for good.
+	if _engage_delay > 0.0:
+		_engage_delay = maxf(0.0, _engage_delay - delta)
+		move_dir = Vector3.ZERO
+		_state = State.IDLE
+		return
 
 	# While down or getting up the rig owns the body; queuing intent through
 	# that would make it lurch the instant it stands. A dead fighter (its own,
