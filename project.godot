@@ -29,7 +29,7 @@ enabled=PackedStringArray("res://addons/kickback/plugin.cfg")
 [layer_names]
 
 3d_physics/layer_1="Environment"
-3d_physics/layer_2="Projectiles"
+3d_physics/layer_2="Weapons"
 3d_physics/layer_3="Characters"
 3d_physics/layer_4="Active Ragdoll"
 3d_physics/layer_5="Godot Ragdoll"

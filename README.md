@@ -18,7 +18,7 @@ playable at:
 | Input | Action |
 |---|---|
 | `W` `A` `S` `D`, or the on-screen joystick | Walk (camera-relative) |
-| `Space` / left click, or the on-screen SWING button | Sword swing — knocks down a dummy in front of you |
+| `Space` / left click, or the on-screen SWING button | Sword swing — a real physics-driven blade, not a hitscan; it deals damage from its own measured contact speed |
 | `1` / `2` / `3` | Hit yourself: light / heavy (stagger) / crushing (ragdoll) |
 | Right-drag, `Q` / `E`, or a touch drag on the right side of the screen | Orbit the camera |
 
@@ -62,7 +62,7 @@ Repository **Settings → Pages**, then either:
 | Path | What's in it |
 |---|---|
 | `scenes/` | `arena.tscn` (the playable scene), `player.tscn`, `dummy.tscn` |
-| `scripts/` | `kickback_actor.gd` (shared ragdoll actor), `player.gd`, `arena.gd`, `combat_profiles.gd` |
+| `scripts/` | `kickback_actor.gd` (shared ragdoll actor), `player.gd`, `physics_sword.gd` (the weapon), `arena.gd`, `combat_profiles.gd`, `touch_controls.gd` |
 | `addons/kickback/` | Active-ragdoll plugin (MIT) — see `assets/CREDITS.md` |
 | `assets/` | Models, animations and SFX, all CC0 — provenance in `assets/CREDITS.md` |
 | `docs/` | Exported web build served by GitHub Pages |

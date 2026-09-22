@@ -1,19 +1,37 @@
 extends KickbackActor
-## Player: WASD walking (camera-relative) and a sword swing that lands a heavy
-## hit on any dummy in front of it. Phase 2/3 of PLAN.md.
+## Player: WASD walking (camera-relative) and a physics-driven sword swing
+## (PLAN.md Phase 3/4). The sword (scripts/physics_sword.gd) grip-follows the
+## rig's Hand_R bone through the existing "Sword_Attack" animation and deals
+## damage from its own real contact velocity — there is no separate raycast/
+## arc hit check here any more; the blade either physically connects or it
+## doesn't.
 
-const ATTACK_RANGE := 2.2
-const ATTACK_ARC_DOT := 0.35
-## Delay between the swing starting and the blow landing, so the hit lines up
-## with the animation's contact frame rather than the keypress.
-const ATTACK_CONTACT_DELAY := 0.28
+const SWORD_SCENE := preload("res://scenes/sword.tscn")
 
 signal landed_hit(target_name: String, profile_name: String)
 
 var camera: Camera3D
 var touch_controls: TouchControls
+var sword: PhysicsSword
 
-var _pending_contact := -1.0
+
+func _ready() -> void:
+	super._ready()
+	sword = SWORD_SCENE.instantiate()
+	# The parent (Arena) is still mid-traversal of its own children's _ready()
+	# right now, so add_child would fail outright — defer it, then wait for
+	# the sword to actually be in the tree before touching its transform.
+	get_parent().add_child.call_deferred(sword)
+	await sword.tree_entered
+	# The rig's own RigidBody3D bones aren't built the instant add_active_rig()
+	# returns — PhysicsRigBuilder builds them in its own _ready(), which (like
+	# every child added at runtime) doesn't run until a later frame. Wait for
+	# Hand_R to actually exist rather than assuming a fixed frame count.
+	while get_rig_bodies().is_empty():
+		await get_tree().process_frame
+	sword.attach_to(self)
+	sword.landed_hit.connect(func(target_name: String, profile_name: String):
+		landed_hit.emit(target_name, profile_name))
 
 
 func _physics_process(delta: float) -> void:
@@ -23,13 +41,8 @@ func _physics_process(delta: float) -> void:
 	move_dir = _camera_relative(input_2d)
 	super._physics_process(delta)
 
-	if Input.is_action_just_pressed("attack") and swing():
-		_pending_contact = ATTACK_CONTACT_DELAY
-
-	if _pending_contact >= 0.0:
-		_pending_contact -= delta
-		if _pending_contact < 0.0:
-			_resolve_swing()
+	if Input.is_action_just_pressed("attack"):
+		swing()
 
 
 func _camera_relative(input_2d: Vector2) -> Vector3:
@@ -45,23 +58,3 @@ func _camera_relative(input_2d: Vector2) -> Vector3:
 		basis_z = basis_z.normalized()
 		basis_x = basis_x.normalized()
 	return (basis_x * input_2d.x + basis_z * -input_2d.y).normalized()
-
-
-func _resolve_swing() -> void:
-	var forward := -global_basis.z
-	for node in get_tree().get_nodes_in_group("hittable"):
-		var target := node as KickbackActor
-		if not target or target == self:
-			continue
-		var to_target := target.global_position - global_position
-		to_target.y = 0.0
-		var dist := to_target.length()
-		if dist > ATTACK_RANGE or dist < 0.01:
-			continue
-		if forward.dot(to_target / dist) < ATTACK_ARC_DOT:
-			continue
-		# Closer hits land cleaner: a blow at the edge of reach only staggers.
-		var profile := CombatProfiles.crushing_blow() if dist < ATTACK_RANGE * 0.6 \
-			else CombatProfiles.heavy_swing()
-		target.receive_hit_at("Chest", (to_target / dist), profile)
-		landed_hit.emit(target.name, String(profile.profile_name))
