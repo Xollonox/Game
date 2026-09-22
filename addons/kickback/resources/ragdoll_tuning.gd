@@ -1,0 +1,643 @@
+## Skeleton-independent physics tuning for ragdoll behavior. Controls spring
+## strengths, recovery timing, collision layers, velocity clamps, and more.
+## Change this to alter the "feel" without changing the skeleton mapping.
+##
+## All properties have sensible defaults for Mixamo humanoids. Create a new
+## RagdollTuning resource in the inspector — it works out of the box.
+class_name RagdollTuning
+extends Resource
+
+# ── Hit Reactions (most-tweaked) ────────────────────────────────────────────
+
+@export_group("Hit Reactions")
+## Whether hits can knock the character into a full ragdoll while it is alive.
+## When false, every spontaneous ragdoll path — the per-hit dice roll
+## (ImpactProfile.ragdoll_probability), pain escalation (pain_ragdoll_threshold)
+## and the stagger tip-over (balance_ragdoll_threshold) — downgrades to stagger,
+## so hits stay visible as reactions without a knockdown. Explicit calls
+## (trigger_ragdoll, set_persistent — i.e. deaths and scripted falls) still
+## ragdoll. Use for death-only-ragdoll games.
+@export var knockdown_enabled: bool = true
+## Average strength ratio below which a non-ragdoll hit triggers stagger.
+## Set to 0.0 to disable stagger entirely.
+@export_range(0.0, 1.0) var stagger_threshold: float = 0.70
+## Duration of stagger state before auto-recovery (seconds).
+@export_range(0.1, 3.0) var stagger_duration: float = 1.8
+## Minimum strength ratio during stagger (fraction of base_strength per bone).
+@export_range(0.05, 0.8) var stagger_strength_floor: float = 0.10
+## Spring recovery rate during stagger (per second). Low = bones stay weak,
+## active resistance becomes the sole driver. 0.0 = no natural recovery during stagger.
+@export_range(0.0, 0.5) var stagger_recovery_rate: float = 0.03
+## Force (Newtons) applied to core bones during stagger, creating visible wobble.
+## Springs fight this force, producing back-and-forth sway. 0.0 = disabled.
+@export_range(0.0, 1000.0) var stagger_sway_strength: float = 300.0
+## Oscillation frequency of the sway force (Hz). Higher = faster wobble.
+@export_range(0.5, 5.0) var stagger_sway_frequency: float = 1.5
+## Perpendicular drift amount relative to primary sway. 0.0 = straight back-and-forth,
+## 1.0 = equal perpendicular wobble (figure-8 pattern).
+@export_range(0.0, 1.0) var stagger_sway_drift: float = 0.4
+## Upper body twist intensity relative to sway force.
+## 0.0 = no independent twist. Higher = more visible torso rotation.
+@export_range(0.0, 0.5) var stagger_sway_twist: float = 0.15
+## Frequency ratio for secondary oscillation (perpendicular drift).
+## Irrational values (1.73, 2.37) prevent repeating patterns. Integer values create synchronized wobble.
+@export_range(0.5, 5.0) var stagger_sway_secondary_ratio: float = 1.73
+## Frequency ratio for upper body twist oscillation.
+@export_range(0.5, 5.0) var stagger_sway_twist_ratio: float = 2.17
+## Spine force/torque as fraction of Hips force. Lower = less spine involvement.
+@export_range(0.0, 1.0) var stagger_sway_spine_falloff: float = 0.7
+## Chest force/torque as fraction of Hips force. Lower = less chest involvement.
+@export_range(0.0, 1.0) var stagger_sway_chest_falloff: float = 0.5
+## Multiplier on ragdoll_probability when hit during active stagger.
+@export_range(1.0, 5.0) var stagger_ragdoll_bonus: float = 1.5
+## Extra strength ratio applied to brace-side bones during stagger.
+## Creates asymmetric "fighting to stay up" posture. 0.0 = disabled (symmetric wobble).
+@export_range(0.0, 0.5) var brace_strength_bonus: float = 0.25
+## How much of a sub-stagger hit's strength_reduction becomes a visible pulse.
+## Higher = light hits produce more visible jolt. 0.0 = disabled.
+@export_range(0.0, 1.0) var reaction_pulse_strength: float = 0.6
+## Duration of the reaction pulse in seconds.
+@export_range(0.05, 0.5) var reaction_pulse_duration: float = 0.2
+## Center-of-mass balance ratio above which a hit triggers stagger (even if
+## average spring strength is still above stagger_threshold).
+## 0.0 = disabled. Higher = harder to trigger stagger from balance alone.
+@export_range(0.0, 1.0) var balance_stagger_threshold: float = 0.5
+## Balance ratio above this during stagger forces ragdoll (character is tipping over).
+@export_range(0.0, 1.0) var balance_ragdoll_threshold: float = 0.85
+## Balance ratio below this during stagger allows early recovery (character regained balance).
+@export_range(0.0, 1.0) var balance_recovery_threshold: float = 0.3
+## How long balance must stay below recovery threshold before stagger ends.
+@export_range(0.0, 1.0) var balance_recovery_hold_time: float = 0.5
+## Pain accumulated per hit, scaled by effective strength_reduction.
+## Pain deterministically escalates reactions (supplements random ragdoll_probability).
+## 0.0 = disabled (dice-roll only).
+@export_range(0.0, 1.0) var pain_gain: float = 0.2
+## Pain decay per second when not being hit.
+@export_range(0.0, 1.0) var pain_decay: float = 0.15
+## Pain level above which a hit forces stagger (even if strength is high). 0.0 = disabled.
+@export_range(0.0, 1.0) var pain_stagger_threshold: float = 0.5
+## Pain level above which a hit forces ragdoll. 0.0 = disabled.
+@export_range(0.0, 1.0) var pain_ragdoll_threshold: float = 0.9
+## Pulse intensity for threat anticipation (pre-hit flinch). 0.0 = disabled.
+@export_range(0.0, 1.0) var threat_anticipation_strength: float = 0.4
+## Minimum speed (m/s) before movement instability bonus applies.
+@export var movement_instability_min_speed: float = 1.0
+## Speed (m/s) at which movement instability bonus is fully applied.
+@export var movement_instability_max_speed: float = 5.0
+## Extra strength reduction when moving at max speed (e.g., 0.3 = 30% more).
+@export_range(0.0, 1.0) var movement_instability_bonus: float = 0.3
+## How much movement direction blends into stagger direction (0.0 = pure hit dir, 1.0 = pure movement dir).
+@export_range(0.0, 1.0) var movement_stagger_blend: float = 0.3
+## Overall intensity of micro-reactions (torso bend, head whip, spin) at impact moment.
+## 0.0 = disabled. Higher = more visible immediate reaction.
+@export_range(0.0, 2.0) var micro_reaction_strength: float = 0.5
+## Head whip torque multiplier. Head gets pushed in hit direction.
+@export_range(0.0, 5.0) var micro_head_whip_strength: float = 2.0
+## Torso bend torque multiplier. Spine/Chest bend away from hit.
+@export_range(0.0, 5.0) var micro_torso_bend_strength: float = 1.5
+## Spin torque multiplier for high-caliber hits (base_impulse > 10). Twists the torso.
+@export_range(0.0, 5.0) var micro_spin_strength: float = 1.0
+## Injury accumulated per significant hit, scaled by reduction. Injuries persist
+## much longer than spring strength and cause functional impairment (limp, dangle).
+## 0.0 = disabled.
+@export_range(0.0, 1.0) var injury_gain: float = 0.15
+## Injury decay per second. Much slower than fatigue — injuries linger.
+@export_range(0.0, 0.2) var injury_decay: float = 0.02
+## Minimum strength_reduction to cause injury. Light hits don't injure.
+@export_range(0.0, 1.0) var injury_threshold: float = 0.3
+## How much injury reduces effective base spring strength (per bone).
+@export_range(0.0, 1.0) var injury_impact: float = 0.4
+## How much injury reduces pin strength (position tracking). Injured legs sag.
+@export_range(0.0, 1.0) var injury_pin_impact: float = 0.7
+
+# ── Spring Strengths ────────────────────────────────────────────────────────
+
+@export_group("Spring Strengths")
+## Per-bone base spring strength. Keys are rig names (e.g. "Hips": 0.65).
+## Bones not listed use default_spring_strength. Higher = stiffer tracking.
+@export var strength_map: Dictionary = {
+	"Hips": 0.65, "Spine": 0.60, "Chest": 0.60,
+	"Head": 0.35,
+	"UpperArm_L": 0.45, "LowerArm_L": 0.40, "Hand_L": 0.25,
+	"UpperArm_R": 0.45, "LowerArm_R": 0.40, "Hand_R": 0.25,
+	"UpperLeg_L": 0.55, "LowerLeg_L": 0.45, "Foot_L": 0.30,
+	"UpperLeg_R": 0.55, "LowerLeg_R": 0.45, "Foot_R": 0.30,
+}
+## Fallback spring strength for bones not in strength_map.
+@export var default_spring_strength: float = 0.25
+
+@export_group("Pin Strengths")
+## Per-bone position tracking strength. Keys are rig names (e.g. "Hips": 0.85).
+## Bones not listed use default_pin_strength. Hips + feet keep character planted.
+@export var pin_strength_overrides: Dictionary = {
+	"Hips": 0.85,
+	"Foot_L": 0.4,
+	"Foot_R": 0.4,
+}
+## Fallback pin strength for bones not in pin_strength_overrides.
+@export var default_pin_strength: float = 0.1
+
+# ── Recovery ────────────────────────────────────────────────────────────────
+
+@export_group("Recovery")
+## Default spring strength recovery rate per second (the rate SpringResolver
+## returns to in NORMAL). Precedence at runtime: an ImpactProfile's recovery_rate
+## replaces it for the reaction to that hit, [member stagger_recovery_rate] while
+## staggering, 0 while ragdolled; the controller restores this value when the
+## character returns to NORMAL.
+@export var recovery_rate: float = 0.3
+## Total duration of the get-up recovery sequence in seconds.
+@export var recovery_duration: float = 2.5
+## Maximum time in ragdoll state before forced recovery.
+@export var ragdoll_force_recovery_time: float = 3.0
+## Duration of pose interpolation from ragdoll landing to animation target.
+@export var pose_blend_duration: float = 0.75
+## Maximum recovery time before forced completion.
+@export var safety_timeout: float = 3.5
+## Fraction of recovery_duration that must elapse before early completion is allowed.
+@export_range(0.5, 1.0) var recovery_completion_threshold: float = 0.95
+## Maximum rotation error (radians) for recovery to complete early.
+@export_range(0.1, 1.0) var recovery_rotation_threshold: float = 0.3
+## Per-bone staggered recovery delay in seconds. Keys are rig names.
+## Core bones recover first, extremities follow.
+@export var ramp_delay: Dictionary = {
+	"Hips": 0.0, "Spine": 0.0, "Chest": 0.05,
+	"Head": 0.25,
+	"UpperArm_L": 0.2, "LowerArm_L": 0.25, "Hand_L": 0.3,
+	"UpperArm_R": 0.2, "LowerArm_R": 0.25, "Hand_R": 0.3,
+	"UpperLeg_L": 0.1, "LowerLeg_L": 0.15, "Foot_L": 0.2,
+	"UpperLeg_R": 0.1, "LowerLeg_R": 0.15, "Foot_R": 0.2,
+}
+## Per-bone minimum strength floor. Keys are rig names.
+## Prevents bones from being fully zeroed by hits.
+@export var min_strength: Dictionary = {
+	"Hips": 0.15, "Spine": 0.10, "Chest": 0.10,
+	"UpperLeg_L": 0.10, "UpperLeg_R": 0.10,
+	"LowerLeg_L": 0.08, "LowerLeg_R": 0.08,
+	"Foot_L": 0.05, "Foot_R": 0.05,
+}
+
+# ── Fatigue & Hit Stacking ──────────────────────────────────────────────────
+
+@export_group("Fatigue & Hit Stacking")
+## How much fatigue each hit adds, scaled by the hit's strength_reduction.
+## Higher = faster fatigue buildup from repeated hits.
+@export_range(0.0, 1.0) var fatigue_gain: float = 0.15
+## How fast fatigue decays per second when not being hit.
+## Lower = fatigue lingers longer between engagements.
+@export_range(0.0, 1.0) var fatigue_decay: float = 0.05
+## How much fatigue reduces effective base spring strength.
+## At fatigue_impact=0.5 and fatigue=1.0, springs recover to 50% of base.
+@export_range(0.0, 1.0) var fatigue_impact: float = 0.5
+## Time window (seconds) within which consecutive hits count as rapid fire.
+@export_range(0.05, 1.0) var rapid_fire_window: float = 0.3
+## Extra strength reduction per streak hit (e.g., 0.3 = 30% more per consecutive hit).
+@export_range(0.0, 1.0) var hit_streak_multiplier: float = 0.3
+## Minimum effective strength_reduction to interrupt GETTING_UP and force re-ragdoll.
+## Set to 2.0 to effectively disable recovery interruption.
+@export_range(0.0, 2.0) var recovery_interrupt_threshold: float = 0.5
+
+# ── Protected Bones ─────────────────────────────────────────────────────────
+
+@export_group("Protected Bones")
+## Bones that stay animated during hits and stagger. Their spring strength
+## is never reduced by impacts. Useful for keeping legs planted while the
+## upper body reacts. During full ragdoll, all bones still go limp.
+@export var protected_bones: PackedStringArray = []
+
+# ── Collision ───────────────────────────────────────────────────────────────
+
+@export_group("Collision")
+## Physics layer the ragdoll bodies occupy (default 8 = UI layer 4,
+## [constant KickbackLayers.ACTIVE_RAGDOLL_LAYER]).
+@export_flags_3d_physics var collision_layer: int = 8
+## Layers the ragdoll bodies collide against (default 15 = UI layers 1-4: the
+## environment plus the other ragdoll bodies).
+@export_flags_3d_physics var collision_mask: int = 15
+## Bones whose collision_mask is set to 0 during NORMAL state and restored on
+## STAGGER/RAGDOLL. Prevents clipping from animation poses (crossed arms, etc.).
+@export var normal_state_disabled_collision: PackedStringArray = []
+## Whether the bodies of ONE rig collide with each other. Off by default: the
+## auto-generated torso boxes and limb capsules overlap in ordinary animation
+## poses (measured on a hunched idle: Chest-Hips in contact 170 of 180 frames,
+## forearms inside the chest box, upper arms in the spine box), and each of
+## those contacts is a solver impulse that rewrites the spring commands every
+## tick — the largest source of the rig lagging / wobbling behind its animation.
+## Bodies still collide with everything else on [member collision_mask]
+## (environment, OTHER ragdolls). Enable to reproduce the pre-1.4 behaviour.
+@export var self_collision: bool = false
+
+# ── Advanced: Spring Dynamics ───────────────────────────────────────────────
+
+@export_group("Advanced: Spring Dynamics")
+## Base angular damping when springs are active. Formula: base + scale * ratio.
+@export var spring_angular_damp_base: float = 1.0
+## Angular damping scale factor per strength ratio.
+@export var spring_angular_damp_scale: float = 2.0
+## Base linear damping when springs are active. Formula: base + scale * ratio.
+@export var spring_linear_damp_base: float = 0.5
+## Linear damping scale factor per strength ratio.
+@export var spring_linear_damp_scale: float = 1.5
+## Angular settle deadband (radians). The spring commands NO corrective angular
+## velocity while a bone is within this much of its target orientation, then ramps
+## in proportionally above it. Kills the steady-state buzz where a tiny irreducible
+## error (e.g. a planted foot the joints can't perfectly satisfy) is otherwise
+## amplified into sustained velocity every tick. Negligible during real motion/hits
+## (errors are far larger). 0.0 = disabled. 0.01 rad ≈ 0.6° (was 0.04 ≈ 2.3°
+## before 1.4: with the rig no longer fighting itself — see self_collision and
+## spring_chain_consistency — the wide band only left every bone wandering 2° off
+## its target; the narrow one measures LESS frame-to-frame jitter, not more).
+@export_range(0.0, 0.2) var spring_angular_settle_deadband: float = 0.01
+## Linear settle deadband (meters). Position-spring analogue of
+## [member spring_angular_settle_deadband]. 0.0 = disabled.
+@export_range(0.0, 0.05) var spring_linear_settle_deadband: float = 0.004
+## How much a jointed body's linear command follows its parent through the joint
+## anchor (1.0 = fully kinematically consistent: v_child = v_parent + w_parent x
+## r; 0.0 = legacy, every body pinned independently). The joint enforces that
+## relation anyway — commanding it up front keeps the solver from paying for the
+## mismatch with impulses that rewrite the angular commands (the idle "wobble" /
+## rig lag behind the animation). Lower only to reproduce the pre-1.4 tracking.
+@export_range(0.0, 1.0) var spring_chain_consistency: float = 1.0
+## How much of the animation target's own motion (its rotation / translation
+## since the previous tick) is fed forward into the spring command. The plain
+## error spring only ever reaches where the target WAS, so a moving target is
+## trailed by one tick's worth of motion per tick of lag (a 150 deg/s idle sway
+## reads 3-8 deg behind); 1.0 = arrive where the target IS (zero steady-state
+## lag), 0.0 = legacy pure error spring. Scaled by bone strength like the
+## error term, so weakened bones still let go.
+@export_range(0.0, 1.0) var spring_feed_forward: float = 1.0
+
+# ── Advanced: Directional Bracing ───────────────────────────────────────────
+
+@export_group("Advanced: Directional Bracing")
+## Bones that receive a core resistance boost during directional bracing.
+## These resist torso rotation on stagger entry.
+@export var core_bracing_bones: PackedStringArray = PackedStringArray(["Hips", "Spine", "Chest"])
+## Dot product threshold for classifying bones as hit-side or brace-side.
+## Bones with dot > threshold are hit-side; dot < -threshold are brace-side.
+@export_range(0.0, 0.5) var bracing_direction_threshold: float = 0.1
+## Extra reduction multiplier applied to hit-side bones during stagger.
+## Higher = hit-side bones weaken more relative to the stagger floor.
+@export_range(0.0, 1.0) var bracing_hit_side_multiplier: float = 0.3
+
+# ── Advanced: Active Resistance ───────────────────────────────────────────
+
+@export_group("Advanced: Active Resistance")
+## How strongly counter-side bones stiffen against the imbalance direction.
+## Higher = more aggressive counter-lean. 0.0 disables active resistance entirely.
+@export_range(0.0, 1.0) var resistance_counter_strength: float = 0.40
+## How much core bones (Hips/Spine/Chest) ramp toward effective base as balance worsens.
+@export_range(0.0, 1.0) var resistance_core_ramp: float = 0.40
+## Strength boost for the load-bearing leg on the fall side.
+@export_range(0.0, 1.0) var resistance_leg_brace: float = 0.35
+## Extra resistance multiplier when center-of-mass velocity is high (reflexive tensing).
+@export_range(0.0, 2.0) var resistance_velocity_spike: float = 1.0
+## CoM speed (m/s) at which velocity spike reaches full effect.
+@export_range(0.5, 5.0) var resistance_velocity_scale: float = 2.0
+
+# ── Advanced: Physics ───────────────────────────────────────────────────────
+
+@export_group("Advanced: Physics")
+## Gravity scale of a fully limp bone (strength 0). The resolver scales it by
+## (1 - strength ratio), so a bone at full strength has no gravity (the springs
+## hold the pose) and a limp ragdoll falls at exactly this scale. 1.0 = real
+## gravity. Pre-0.4.1 this knob was overwritten by a separate 0.5 multiplier, so
+## corpses fell at half gravity; that multiplier is gone.
+@export var gravity_scale: float = 1.0
+## Angular damping for ragdoll bodies when springs are inactive.
+@export var angular_damp: float = 8.0
+## Linear damping for ragdoll bodies when springs are inactive.
+@export var linear_damp: float = 2.0
+## Multiplies every joint's authored angular limits (both bounds, about the
+## rest pose) when the rig is built: 1.0 = as authored in the RagdollProfile,
+## 1.5 = 50 % wider (a game whose animations overdrive the anatomical ranges —
+## exaggerated idles, mocap twist), 0.7 = stiffer corpses. This is the
+## "softness" dial under Jolt, which ignores the 6DOF angular limit softness /
+## damping / restitution parameters. Read at build time only.
+@export_range(0.25, 3.0) var joint_limit_scale: float = 1.0
+## Maximum angular velocity for spring-driven bodies.
+@export var max_angular_velocity: float = 20.0
+## Maximum linear velocity for spring-driven bodies.
+@export var max_linear_velocity: float = 10.0
+## Transfer the character's movement velocity to ragdoll bodies on ragdoll entry.
+## Disable for enemies walking toward the player to prevent forward-launching.
+@export var transfer_character_velocity: bool = true
+## Scale factor for velocity transfer (0.0–1.0). Only used when transfer is enabled.
+@export_range(0.0, 1.0) var velocity_transfer_scale: float = 1.0
+## How long bodies must be below velocity thresholds to count as settled.
+@export var settle_duration: float = 0.6
+## Linear velocity threshold for settle detection.
+@export var settle_linear_threshold: float = 0.5
+## Angular velocity threshold for settle detection.
+@export var settle_angular_threshold: float = 0.3
+## Minimum support radius for balance calculation (prevents division artifacts
+## when feet are very close together).
+@export var balance_support_radius_min: float = 0.1
+## Maximum balance ratio value (clamp). Values above 1.0 mean the CoM is
+## outside the support polygon.
+@export var balance_max_ratio: float = 1.5
+
+# ── Advanced: Ground & Root Motion ──────────────────────────────────────────
+
+@export_group("Advanced: Ground & Root Motion")
+## Which way the character model faces along the root's local Z axis. Mixamo
+## characters (and the Kickback demos) face +Z, the default. Godot's own forward
+## convention is -Z — set -Z for characters authored that way, or get-up recovery
+## stands them up facing backwards (and the protective fall reach misjudges
+## forward vs backward falls).
+@export_enum("+Z (Mixamo / Kickback demos):1", "-Z (Godot forward):-1")
+var character_forward_sign: int = 1
+## Collision mask for ground raycasts during get-up recovery.
+## Defaults to layer 1 (world geometry in standard Godot projects).
+@export_flags_3d_physics var ground_raycast_mask: int = 1
+## Whether to align the character root to the ground slope during recovery.
+@export var align_to_slope: bool = false
+## Raycast origin offset above the hip position (meters).
+@export var ground_raycast_up_offset: float = 1.0
+## Raycast distance below the hip position (meters).
+@export var ground_raycast_down_distance: float = 3.0
+## Ground normal must have this dot product with UP to count as a slope.
+@export_range(0.0, 1.0) var slope_alignment_threshold: float = 0.5
+## Strip horizontal (XZ) root motion from the root bone's animation pose.
+## Prevents drift when using animations with root motion (e.g., Mixamo).
+@export var strip_root_motion: bool = true
+## Rig name of the root bone whose root motion should be stripped.
+@export var root_motion_bone: String = "Hips"
+
+
+# ── Foot IK ─────────────────────────────────────────────────────────────────
+
+@export_group("Foot IK")
+## Enable foot IK to plant feet on uneven terrain during NORMAL state.
+## When enabled, a foot IK solver adjusts leg targets based on ground raycasts.
+@export var foot_ik_enabled: bool = true
+## Distance from ankle joint center to the bottom of the foot sole (meters).
+## Offsets the IK target upward so feet don't sink into the ground.
+@export_range(0.0, 0.2) var foot_ik_ankle_height: float = 0.065
+## Maximum distance the pelvis can drop to accommodate the lowest foot (meters).
+## Prevents unrealistic leg stretching when one foot is much lower than the other.
+@export_range(0.0, 1.0) var foot_ik_max_pelvis_drop: float = 0.35
+## Maximum vertical foot correction per foot (meters).
+## Limits how far a foot can be adjusted from its animation position.
+@export_range(0.0, 1.0) var foot_ik_max_adjustment: float = 0.5
+## Foot height above character root beyond which the foot is in swing phase.
+## During swing, IK weight ramps to 0 to allow free animation movement.
+@export_range(0.1, 0.5) var foot_ik_swing_threshold: float = 0.25
+## Foot height above character root below which the foot is fully planted.
+## Between this and swing_threshold, IK weight blends gradually.
+@export_range(0.05, 0.3) var foot_ik_plant_threshold: float = 0.17
+## Smoothing speed for pelvis height adjustment (higher = faster response).
+## Uses exponential damping: lerp(current, target, 1 - exp(-speed * delta)).
+@export_range(1.0, 30.0) var foot_ik_pelvis_blend_speed: float = 8.0
+## Smoothing speed for per-foot IK weight transitions (higher = faster blend).
+@export_range(1.0, 30.0) var foot_ik_foot_blend_speed: float = 10.0
+## Extra height above the hip joint to start ground raycasts (meters).
+## Ensures rays start above the character to detect ground reliably.
+@export_range(0.0, 1.0) var foot_ik_ray_above_hip: float = 0.3
+## Distance below ray origin to cast for ground detection (meters).
+@export_range(1.0, 5.0) var foot_ik_ray_below_hip: float = 2.5
+## Physics collision layers used for foot IK ground raycasts.
+## Must include layers that your terrain/ground uses.
+@export_flags_3d_physics var foot_ik_collision_mask: int = 1
+## Disable foot body collision with ground during NORMAL state.
+## IK plants feet precisely so physics collision is redundant and causes jitter.
+## Collision is restored during STAGGER/RAGDOLL/GETTING_UP.
+@export var foot_ik_disable_foot_collision: bool = true
+## Pin feet to their ground contact positions during STAGGER state.
+## Prevents foot sliding while the upper body wobbles from sway forces.
+## Leg bone spring strengths are boosted to keep feet planted.
+@export var foot_ik_stagger_pin: bool = true
+## Minimum leg bone spring strength (as fraction of base) during stagger pinning.
+## Higher = feet stay more firmly planted. Lower = legs wobble with the body.
+@export_range(0.1, 1.0) var foot_ik_stagger_leg_strength: float = 0.4
+
+
+# ── Self-Preservation: Stumble Steps ────────────────────────────────────────
+
+@export_group("Self-Preservation: Stumble Steps")
+## Enable the directed stumble: a staggering hit drifts the character root along
+## the hit direction ([member stumble_push_speed]) and the trailing foot steps to
+## follow. NOTE: this is a scripted displacement, not balance-driven stepping
+## (see docs/AUDIT_2026-09-12.md). Requires foot IK (the step is executed through
+## the foot IK solver). 0.4.0.
+@export var stumble_enabled: bool = true
+## Horizontal distance (meters) the root drifts between consecutive stumble
+## steps, and the distance ahead of the hips each step lands.
+@export_range(0.0, 1.0) var stumble_step_length: float = 0.24
+## Time for the stepping foot to travel from its current position to the step
+## target (seconds).
+@export_range(0.05, 1.0) var stumble_step_duration: float = 0.24
+## Maximum number of catch-steps in one stagger before giving up and ragdolling.
+@export_range(1, 5) var stumble_max_steps: int = 3
+## Spring strength (as a fraction of each bone's base) applied WHILE stumbling. A
+## real stumble tenses the body and steps — not a foot reposition on a limp ragdoll —
+## so during the stumble the springs stiffen toward this level so the body stays
+## upright as it lurches. Transient (only while [member _stumbling]); relaxes to the
+## stagger floor when the stumble ends. Higher = stiffer/more upright; too high reads
+## as a snap. 0.0 = no stiffening.
+@export_range(0.0, 1.0) var stumble_brace_strength: float = 0.6
+## Initial knockback speed (m/s) of the directed stumble: on a staggering hit the
+## character root drifts in the hit direction at this speed, so the stumble visibly
+## DISPLACES the character (you stumble where you're shoved) rather than shuffling in
+## place. Decays via [member stumble_push_decel]. 0.0 = no displacement (in-place).
+@export_range(0.0, 6.0) var stumble_push_speed: float = 2.3
+## Deceleration (m/s²) of the knockback drift — how fast the stumble momentum is
+## absorbed. Total stumble distance ≈ speed² / (2·decel). Higher = shorter stumble.
+@export_range(0.5, 20.0) var stumble_push_decel: float = 7.0
+## Peak height (meters) the swinging foot lifts during a stumble step, so it steps
+## over the ground instead of sliding across it. 0.0 = no lift (slides).
+@export_range(0.0, 0.3) var stumble_step_lift: float = 0.1
+
+
+# ── Self-Preservation: Arm Bracing ──────────────────────────────────────────
+
+@export_group("Self-Preservation: Arm Bracing")
+## Enable procedural arm bracing: during a directed stumble the arms windmill (sweep
+## in wide vertical circles) to fight for balance — the active upper-body layer on top
+## of the loose flailing. Requires the arm IK solver (arm-chain roles). 0.4.0.
+@export var arm_brace_enabled: bool = true
+## How strongly the windmill drives the arms (0..1). This is a TENDENCY layered over
+## the loose physics pose, not a takeover: lower keeps the arms reactive and organic
+## (they only lean toward the windmill), 1.0 pins them rigidly to the geometric circle.
+@export_range(0.0, 1.0) var arm_brace_weight: float = 0.5
+## Radius (meters) of the windmill circle each hand sweeps. Larger = bigger, wilder
+## arcs. Kept within the arm's reach so the solve never overstretches.
+@export_range(0.0, 0.5) var arm_windmill_radius: float = 0.24
+## Outward offset (meters) of each windmill circle from the shoulder, along the body's
+## lateral axis, so the arms circle out to their own sides instead of across the chest.
+@export_range(0.0, 0.5) var arm_windmill_lateral: float = 0.16
+## Vertical offset (meters) of each windmill circle's center above the shoulder, so the
+## arms sweep up high (a raised, balancing flail) rather than down at the hips.
+@export_range(-0.3, 0.5) var arm_windmill_height: float = 0.1
+## Angular speed (rad/s) of the windmill sweep. Higher = faster spinning arms. The two
+## arms sweep in opposite phase, so this also sets how fast they alternate.
+@export_range(0.0, 30.0) var arm_windmill_speed: float = 5.0
+## Blend rate (per second) the arm IK weight ramps in/out over. Higher = the arms snap
+## into the brace faster; lower = they ease in.
+@export_range(1.0, 40.0) var arm_brace_blend_speed: float = 8.0
+## Reach-for-ground: when a hit commits to a FALL (the character tips over to ragdoll),
+## the leading arm extends toward the ground to break it — the protective half of arm
+## bracing. The arm stays active for a short window while the rest of the body goes
+## limp, then releases. Requires the arm IK solver. 0.4.0.
+@export var arm_fall_reach_enabled: bool = true
+## Seconds the bracing arm stays active into the fall before it goes fully limp — the
+## window in which the arm protectively reaches. After it, the whole body ragdolls.
+@export_range(0.0, 1.5) var arm_fall_reach_duration: float = 0.55
+## Spring strength (fraction of base) held on the bracing arm during the fall window
+## while the rest of the body goes limp. Higher = a stiffer, more committed catch.
+@export_range(0.0, 1.0) var arm_fall_reach_strength: float = 0.8
+## How far ahead of the body (along the fall direction) the ground reach target sits
+## (meters). The hand reaches down and forward, into the fall.
+@export_range(0.0, 1.0) var arm_fall_reach_distance: float = 0.5
+## How strongly the IK drives the bracing arm toward the ground target (0..1). Higher
+## than the windmill — a committed reach, not a tendency.
+@export_range(0.0, 1.0) var arm_fall_reach_weight: float = 0.95
+## Minimum alignment between the fall direction and the character's facing for the
+## protective reach to fire (fall·forward). Forward fall = +1, sideways = 0, backward =
+## -1. Below this the fall runs too far backward for a hands-forward catch (the arm
+## would contort reaching behind), so the reach is skipped. -1 = always reach.
+@export_range(-1.0, 1.0) var arm_fall_reach_min_facing: float = -0.25
+
+
+## Creates a RagdollTuning with standard defaults. Equivalent to RagdollTuning.new()
+## since all property defaults are pre-populated.
+static func create_default() -> RagdollTuning:
+	return RagdollTuning.new()
+
+
+## Creates a RagdollTuning for fast-paced action games with amplified reactions.
+## Increases micro-reaction intensity, sway force, and pain escalation
+## for more visible hit feedback compared to the realistic defaults.
+static func create_game_default() -> RagdollTuning:
+	var t := RagdollTuning.new()
+	t.micro_reaction_strength = 1.2
+	t.micro_head_whip_strength = 3.5
+	t.micro_torso_bend_strength = 2.5
+	t.micro_spin_strength = 2.0
+	t.stagger_sway_strength = 600.0
+	t.reaction_pulse_strength = 0.9
+	t.stagger_duration = 1.2
+	t.pain_gain = 0.35
+	return t
+
+
+## Creates a RagdollTuning for tough characters that resist stagger and recover fast.
+static func create_tank() -> RagdollTuning:
+	var t := RagdollTuning.new()
+	t.strength_map = {
+		"Hips": 0.90, "Spine": 0.85, "Chest": 0.85, "Head": 0.70,
+		"UpperArm_L": 0.75, "LowerArm_L": 0.65, "Hand_L": 0.50,
+		"UpperArm_R": 0.75, "LowerArm_R": 0.65, "Hand_R": 0.50,
+		"UpperLeg_L": 0.80, "LowerLeg_L": 0.70, "Foot_L": 0.55,
+		"UpperLeg_R": 0.80, "LowerLeg_R": 0.70, "Foot_R": 0.55,
+	}
+	t.pin_strength_overrides = {"Hips": 0.95, "Foot_L": 0.6, "Foot_R": 0.6}
+	t.default_pin_strength = 0.3
+	t.recovery_rate = 0.8
+	t.stagger_threshold = 0.3
+	t.stagger_strength_floor = 0.50
+	t.stagger_duration = 0.3
+	return t
+
+
+## Creates a RagdollTuning for nimble characters that stagger easily but recover fast.
+static func create_agile() -> RagdollTuning:
+	var t := RagdollTuning.new()
+	t.stagger_threshold = 0.80
+	t.stagger_duration = 1.0
+	t.recovery_rate = 0.5
+	t.fatigue_decay = 0.15
+	t.pain_decay = 0.25
+	return t
+
+
+## Creates a RagdollTuning for characters that ragdoll easily under sustained fire.
+static func create_fragile() -> RagdollTuning:
+	var t := RagdollTuning.new()
+	t.stagger_threshold = 0.80
+	t.stagger_strength_floor = 0.10
+	t.stagger_duration = 0.8
+	t.stagger_ragdoll_bonus = 3.0
+	t.pain_gain = 0.4
+	t.injury_gain = 0.3
+	return t
+
+
+## Creates a RagdollTuning for responsive action games. Low stagger duration,
+## fast recovery, exaggerated micro-reactions for snappy hit feedback.
+static func create_responsive() -> RagdollTuning:
+	var t := RagdollTuning.new()
+	t.stagger_duration = 0.4
+	t.recovery_rate = 1.0
+	t.stagger_recovery_rate = 0.08
+	t.micro_reaction_strength = 1.5
+	t.micro_head_whip_strength = 4.0
+	t.micro_torso_bend_strength = 3.0
+	t.pain_decay = 0.3
+	t.fatigue_decay = 0.2
+	return t
+
+
+## Creates a RagdollTuning for heavy, weighty characters. High damping,
+## slow recovery, and subdued micro-reactions for a realistic mass feel.
+static func create_heavy() -> RagdollTuning:
+	var t := RagdollTuning.new()
+	t.strength_map = {
+		"Hips": 0.80, "Spine": 0.75, "Chest": 0.75, "Head": 0.50,
+		"UpperArm_L": 0.55, "LowerArm_L": 0.40, "Hand_L": 0.30,
+		"UpperArm_R": 0.55, "LowerArm_R": 0.40, "Hand_R": 0.30,
+		"UpperLeg_L": 0.70, "LowerLeg_L": 0.55, "Foot_L": 0.40,
+		"UpperLeg_R": 0.70, "LowerLeg_R": 0.55, "Foot_R": 0.40,
+	}
+	t.stagger_duration = 2.0
+	t.recovery_rate = 0.2
+	t.gravity_scale = 1.2
+	t.angular_damp = 4.0
+	t.linear_damp = 1.5
+	t.stagger_sway_strength = 300.0
+	t.micro_reaction_strength = 0.5
+	return t
+
+
+## Validates that all dictionary keys in this tuning reference valid rig names
+## defined in the given [param profile]. Returns an array of warning strings.
+## An empty array means all keys are valid.
+func validate_against_profile(profile: RagdollProfile) -> PackedStringArray:
+	var warnings := PackedStringArray()
+	var valid_names := {}
+	for bone_def: BoneDefinition in profile.bones:
+		valid_names[bone_def.rig_name] = true
+
+	var dicts: Array[Array] = [
+		["strength_map", strength_map],
+		["pin_strength_overrides", pin_strength_overrides],
+		["ramp_delay", ramp_delay],
+		["min_strength", min_strength],
+	]
+	for entry: Array in dicts:
+		var dict_name: String = entry[0]
+		var dict: Dictionary = entry[1]
+		for key: String in dict:
+			if key not in valid_names:
+				warnings.append("%s key '%s' not found in profile rig names" % [dict_name, key])
+
+	for bone_name: String in protected_bones:
+		if bone_name not in valid_names:
+			warnings.append("protected_bones entry '%s' not found in profile rig names" % bone_name)
+
+	for bone_name: String in core_bracing_bones:
+		if bone_name not in valid_names:
+			warnings.append("core_bracing_bones entry '%s' not found in profile rig names" % bone_name)
+
+	# Foot IK resolves feet/legs through the profile's semantic roles, not hardcoded
+	# Mixamo names — mirror RagdollProfile.validate_against_skeleton so a non-Mixamo rig
+	# with its role fields set doesn't get spurious "requires 'Foot_L'" warnings.
+	if foot_ik_enabled:
+		if profile.get_foot_rigs().size() < 2:
+			warnings.append("foot_ik_enabled requires two foot bodies (profile foot_rigs role)")
+		for side: String in ["L", "R"]:
+			if profile.get_leg_chain(side).is_empty():
+				warnings.append("foot_ik_enabled requires a complete %s leg chain (profile %s_leg_chain role)" % [
+					side, "left" if side == "L" else "right"])
+
+	return warnings

@@ -1,0 +1,153 @@
+## Monitors physics contacts on ragdoll bodies and emits impact events.
+## Optional component — add as a sibling to KickbackCharacter. Does NOT
+## trigger hit reactions; emits its own signal for scoring, VFX, and sound.
+##
+## This is completely separate from [method KickbackCharacter.receive_hit].
+## Routing [signal body_impact] back through receive_hit() will cause a
+## feedback loop — use it only for passive observation (damage numbers,
+## particle spawning, audio cues, score tracking).
+@icon("res://addons/kickback/icons/physics_rig_builder.svg")
+class_name PhysicsCollisionMonitor
+extends Node
+
+@export_group("References")
+## Path to the KickbackCharacter sibling. If empty, auto-discovers from siblings.
+@export var kickback_character_path: NodePath
+
+@export_group("Filtering")
+## Minimum impact velocity (m/s) to emit a signal. Contacts below this
+## are silently discarded. Prevents spam from gentle resting contacts.
+@export_range(0.0, 20.0) var velocity_threshold: float = 2.0
+## Per-bone cooldown in seconds. After emitting for a bone, that bone
+## is silenced for this duration.
+@export_range(0.0, 5.0) var cooldown: float = 0.3
+## Which bones to monitor. Empty array = monitor ALL bones.
+@export var monitored_bones: PackedStringArray = []
+## Filter out contacts between bones of the same ragdoll rig.
+@export var filter_self_collisions: bool = true
+
+## Emitted when a monitored ragdoll body impacts the environment.
+## [param bone_name] is the rig name (e.g., "Head", "Foot_L").
+## [param velocity] is the impact speed in m/s at the moment of contact.
+## [param contact_body] is the Node3D that was contacted (e.g., a StaticBody3D).
+signal body_impact(bone_name: String, velocity: float, contact_body: Node3D)
+
+var _kickback_char: KickbackCharacter
+var _rig_builder: PhysicsRigBuilder
+var _connected: bool = false
+var _body_to_rig_name: Dictionary = {}       # RigidBody3D → rig_name (monitored bodies)
+var _own_bodies: Dictionary = {}             # RigidBody3D → true, EVERY body of this rig
+var _cooldown_timestamps: Dictionary = {}    # rig_name → last emit time (physics seconds)
+## Accumulated physics time (seconds). Cooldowns are measured against this, not
+## the wall clock, so pausing or Engine.time_scale don't leak through.
+var _physics_time: float = 0.0
+var _ragdoll_layer_mask: int = 0
+
+
+func _ready() -> void:
+	if not kickback_character_path.is_empty():
+		_kickback_char = get_node_or_null(kickback_character_path) as KickbackCharacter
+	else:
+		for sibling in get_parent().get_children():
+			if sibling is KickbackCharacter:
+				_kickback_char = sibling
+				break
+
+	if not _kickback_char:
+		push_warning("PhysicsCollisionMonitor: no KickbackCharacter found — monitor disabled")
+		return
+
+	if _kickback_char.is_setup_complete():
+		_connect_to_bodies()
+	else:
+		_kickback_char.setup_complete.connect(_connect_to_bodies, CONNECT_ONE_SHOT)
+
+
+func _connect_to_bodies() -> void:
+	for sibling in get_parent().get_children():
+		if sibling is PhysicsRigBuilder:
+			_rig_builder = sibling
+			break
+
+	if not _rig_builder:
+		push_warning("PhysicsCollisionMonitor: no PhysicsRigBuilder found — monitor disabled")
+		return
+
+	var bodies: Dictionary = _rig_builder.get_bodies()
+	if bodies.is_empty():
+		push_warning("PhysicsCollisionMonitor: PhysicsRigBuilder has no bodies — monitor disabled")
+		return
+
+	_ragdoll_layer_mask = _rig_builder.get_tuning().collision_layer
+
+	var monitor_set: Dictionary = {}
+	for bone_name: String in monitored_bones:
+		monitor_set[bone_name] = true
+
+	for rig_name: String in bodies:
+		var body: RigidBody3D = bodies[rig_name]
+		# The self-collision filter must know EVERY body of the rig, not just the
+		# monitored subset — a monitored Hips striking this rig's own (unmonitored)
+		# hand is still a self-contact.
+		_own_bodies[body] = true
+		if not monitor_set.is_empty() and rig_name not in monitor_set:
+			continue
+
+		body.contact_monitor = true
+		body.max_contacts_reported = maxi(body.max_contacts_reported, 1)
+		_body_to_rig_name[body] = rig_name
+		body.body_entered.connect(_on_body_entered.bind(body))
+
+	_connected = true
+
+
+func _on_body_entered(other_body: Node3D, this_body: RigidBody3D) -> void:
+	var rig_name: String = _body_to_rig_name.get(this_body, "")
+	if rig_name.is_empty():
+		return
+
+	# Filter self-collisions (bone-on-bone from the same rig, monitored or not)
+	if filter_self_collisions and other_body is RigidBody3D:
+		if other_body.collision_layer & _ragdoll_layer_mask:
+			if other_body in _own_bodies:
+				return
+
+	# Filter by velocity threshold
+	var speed: float = this_body.linear_velocity.length()
+	if speed < velocity_threshold:
+		return
+
+	# Filter by cooldown (physics time)
+	var now: float = _physics_time
+	var last_time: float = _cooldown_timestamps.get(rig_name, -INF)
+	if (now - last_time) < cooldown:
+		return
+	_cooldown_timestamps[rig_name] = now
+
+	body_impact.emit(rig_name, speed, other_body)
+
+
+func _physics_process(delta: float) -> void:
+	_physics_time += delta
+
+
+func _exit_tree() -> void:
+	if not _connected:
+		return
+	# The keys can be already-freed bodies when the whole rig is torn down
+	# in one batch (an integrator's rig-LOD demote frees the builder's body
+	# children alongside this monitor) — a typed `body: RigidBody3D` loop
+	# variable throws on the freed assignment BEFORE is_instance_valid can
+	# guard, so the loop variable stays untyped.
+	for key in _body_to_rig_name.keys():
+		if not is_instance_valid(key):
+			continue
+		var body := key as RigidBody3D
+		var cb := _on_body_entered.bind(body)
+		if body.body_entered.is_connected(cb):
+			body.body_entered.disconnect(cb)
+		body.contact_monitor = false
+		body.max_contacts_reported = 0
+	_body_to_rig_name.clear()
+	_own_bodies.clear()
+	_connected = false

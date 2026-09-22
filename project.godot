@@ -12,7 +12,7 @@ config_version=5
 
 config/name="Game"
 config/version="0.1.0"
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/ragdoll_test.tscn"
 config/features=PackedStringArray("4.7")
 config/icon="res://icon.svg"
 
@@ -21,6 +21,24 @@ config/icon="res://icon.svg"
 gdscript/warnings/unused_variable=1
 gdscript/warnings/unused_signal=1
 gdscript/warnings/shadowed_variable=1
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/kickback/plugin.cfg")
+
+[layer_names]
+
+3d_physics/layer_1="Environment"
+3d_physics/layer_2="Projectiles"
+3d_physics/layer_3="Characters"
+3d_physics/layer_4="Active Ragdoll"
+3d_physics/layer_5="Godot Ragdoll"
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+jolt_physics_3d/solver/velocity_iterations=8
+jolt_physics_3d/solver/position_iterations=2
 
 [input]
 

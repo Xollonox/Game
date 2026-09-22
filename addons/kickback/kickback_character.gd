@@ -1,0 +1,340 @@
+## Central coordinator for a Kickback-enabled character. Resolves the sibling
+## ActiveRagdollController and routes incoming hits to it.
+@icon("res://addons/kickback/icons/kickback_character.svg")
+class_name KickbackCharacter
+extends Node
+
+## Whether this character has a working active ragdoll.
+enum Mode {
+	ACTIVE,  ## Full physics rig with spring-driven joints.
+	NONE,    ## No active ragdoll controller available.
+}
+
+@export_group("References")
+## Path to the Skeleton3D node that drives this character's mesh.
+@export var skeleton_path: NodePath
+## Path to the character's root Node3D (gameplay root, not model sub-node).
+## This node is teleported during ragdoll recovery. The setup tool defaults to
+## ".." assuming Kickback nodes are direct children of the character root. If
+## nodes are inside a model sub-scene, override to reach the actual gameplay root.
+@export var character_root_path: NodePath
+
+@export_group("Configuration")
+## Skeleton-dependent ragdoll config (bone mapping, joints, shapes).
+## If null, defaults to Mixamo humanoid.
+@export var ragdoll_profile: RagdollProfile
+## Physics tuning (spring strengths, recovery, collision layers).
+## If null, uses built-in defaults.
+@export var ragdoll_tuning: RagdollTuning
+## State to enter automatically after setup completes. "Normal" does nothing.
+## "Ragdoll" triggers an immediate ragdoll. "Persistent" enters persistent ragdoll.
+@export_enum("Normal", "Ragdoll", "Persistent") var initial_state: String = "Normal"
+
+var _skeleton: Skeleton3D
+var _character_root: Node3D
+
+var _rig_builder: PhysicsRigBuilder
+var _rig_sync: PhysicsRigSync
+var _spring: SpringResolver
+var _active_controller: ActiveRagdollController
+
+var _mode: int = Mode.NONE
+var _setup_warnings: PackedStringArray = PackedStringArray()
+var _ready_complete: bool = false
+var _queued_guide: Array = [0.5, 0.5, 1.0]  # queue_persistent_guided args until setup completes
+var _exiting: bool = false
+
+## Emitted when all controllers are initialized and the character is ready for use.
+signal setup_complete()
+
+
+func _ready() -> void:
+	_skeleton = get_node_or_null(skeleton_path) as Skeleton3D
+	if not _skeleton:
+		push_error("KickbackCharacter: skeleton_path is invalid or missing — cannot initialize.")
+		return
+
+	# Set skeleton modifier callback to Physics so IK and spring resolver stay in sync
+	_skeleton.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_PHYSICS
+
+	if not character_root_path.is_empty():
+		_character_root = get_node_or_null(character_root_path) as Node3D
+
+	# Resolve the active-ragdoll controllers among the siblings
+	for sibling in get_parent().get_children():
+		if sibling is PhysicsRigBuilder:
+			_rig_builder = sibling
+		elif sibling is PhysicsRigSync:
+			_rig_sync = sibling
+		elif sibling is SpringResolver:
+			_spring = sibling
+		elif sibling is ActiveRagdollController:
+			_active_controller = sibling
+
+	# Distribute configuration to all controllers
+	if _rig_builder:
+		_rig_builder.configure(ragdoll_profile, ragdoll_tuning)
+	if _rig_sync:
+		_rig_sync.configure(ragdoll_profile)
+	if _spring:
+		_spring.configure(ragdoll_tuning)
+	if _active_controller:
+		_active_controller.configure(ragdoll_profile, ragdoll_tuning)
+
+	# Active ragdoll mode requires the full node set
+	if _rig_builder and _spring and _rig_sync and _active_controller:
+		_mode = Mode.ACTIVE
+
+	_validate_setup()
+
+	for i in 5:
+		await get_tree().process_frame
+		if _exiting:
+			return
+
+	# Enable the active ragdoll
+	if _mode == Mode.ACTIVE:
+		_rig_builder.set_enabled(true)
+		_rig_sync.set_active(true)
+		_spring.set_active(true)
+
+	if not is_inside_tree():
+		return
+	_ready_complete = true
+	setup_complete.emit()
+
+	# Apply initial state (after setup_complete so listeners can connect first)
+	match initial_state:
+		"Ragdoll":
+			if _active_controller:
+				_active_controller.trigger_ragdoll()
+		"Persistent":
+			if _active_controller:
+				_active_controller.set_persistent(true)
+
+
+func _exit_tree() -> void:
+	_exiting = true
+
+
+## Routes an incoming hit to the active ragdoll controller.
+## [param body] should be one of the active rig's RigidBody3D bodies.
+func receive_hit(body: CollisionObject3D, hit_dir: Vector3, hit_pos: Vector3, profile: ImpactProfile) -> void:
+	if _active_controller and body is RigidBody3D:
+		_active_controller.apply_hit(body, hit_dir, hit_pos, profile)
+
+
+## Returns the current mode as a [enum Mode] value.
+func get_mode() -> int:
+	return _mode
+
+
+## Returns true if the character is in full ragdoll, getting up, or persistent ragdoll.
+## Does NOT return true during stagger — use [method is_staggering] for that.
+func is_ragdolled() -> bool:
+	if _active_controller:
+		var s := _active_controller.get_state()
+		return s == ActiveRagdollController.State.RAGDOLL \
+			or s == ActiveRagdollController.State.GETTING_UP \
+			or s == ActiveRagdollController.State.PERSISTENT
+	return false
+
+
+## Returns true if the character is currently staggering (hit-reactive but on feet).
+func is_staggering() -> bool:
+	if _active_controller:
+		return _active_controller.get_state() == ActiveRagdollController.State.STAGGER
+	return false
+
+
+## Forces the character into a stagger. Recovers automatically after stagger_duration.
+func trigger_stagger(hit_dir: Vector3 = Vector3.FORWARD) -> void:
+	if _active_controller:
+		_active_controller.trigger_stagger(hit_dir)
+	else:
+		push_warning("KickbackCharacter: no ActiveRagdollController available for trigger_stagger()")
+
+
+## Causes a brief defensive flinch toward the threat direction.
+## Call when the character detects incoming danger (nearby gunfire, melee wind-up).
+func anticipate_threat(threat_dir: Vector3, urgency: float = 0.5) -> void:
+	if _active_controller:
+		_active_controller.anticipate_threat(threat_dir, urgency)
+	else:
+		push_warning("KickbackCharacter: no ActiveRagdollController available for anticipate_threat()")
+
+
+## Returns the active ragdoll state name, or "N/A" if no active controller.
+func get_active_state_name() -> String:
+	if _active_controller:
+		return _active_controller.get_state_name()
+	return "N/A"
+
+
+## Returns the active ragdoll state as an [enum ActiveRagdollController.State] int.
+## Returns -1 if no active controller is present.
+func get_active_state() -> int:
+	if _active_controller:
+		return _active_controller.get_state()
+	return -1
+
+
+## Returns true if the Kickback system has finished initializing.
+func is_setup_complete() -> bool:
+	return _ready_complete
+
+
+## The issues found while validating this character's setup in [method _ready]
+## (the same list [code]push_warning[/code] reported): Jolt not active, the
+## profile's bones / joints / roles / intermediate bones checked against the
+## actual [Skeleton3D] ([method RagdollProfile.validate_against_skeleton]), the
+## tuning checked against the profile, missing controller nodes. Empty when the
+## setup is clean. Setup is never aborted for these — the builder skips bones it
+## cannot find — so a mis-mapped rig runs with fewer bodies; this is how to tell.
+func get_setup_warnings() -> PackedStringArray:
+	return _setup_warnings
+
+
+## Re-caches the values the controllers copy out of [member ragdoll_tuning] at
+## configure time (velocity clamps, root-motion stripping, chain consistency,
+## feed-forward, protected bones). Call after mutating the RagdollTuning at
+## runtime — a bare property write on the resource is not seen otherwise.
+## Build-time settings (collision layers, joint limits, shapes) still need a
+## rig rebuild.
+func refresh_tuning() -> void:
+	if _spring:
+		_spring.refresh_tuning()
+	if _active_controller:
+		_active_controller.refresh_tuning()
+
+
+## Forces the character to ragdoll immediately. Recovers automatically.
+func trigger_ragdoll() -> void:
+	if _active_controller:
+		_active_controller.trigger_ragdoll()
+	else:
+		push_warning("KickbackCharacter: no ActiveRagdollController available for trigger_ragdoll()")
+
+
+## Triggers ragdoll as soon as setup completes. Safe to call at spawn time
+## before the physics rig is built. If setup has already completed, triggers
+## immediately.
+func queue_ragdoll() -> void:
+	if _ready_complete:
+		trigger_ragdoll()
+		return
+	if not setup_complete.is_connected(_deferred_ragdoll):
+		setup_complete.connect(_deferred_ragdoll, CONNECT_ONE_SHOT)
+
+
+## Enables persistent ragdoll as soon as setup completes. Safe to call at
+## spawn time before the physics rig is built. If setup has already completed,
+## enables immediately.
+func queue_persistent() -> void:
+	if _ready_complete:
+		set_persistent(true)
+		return
+	if not setup_complete.is_connected(_deferred_persistent):
+		setup_complete.connect(_deferred_persistent, CONNECT_ONE_SHOT)
+
+
+## Enables or disables persistent ragdoll (death/knockdown).
+func set_persistent(enabled: bool) -> void:
+	if _active_controller:
+		_active_controller.set_persistent(enabled)
+	else:
+		push_warning("KickbackCharacter: no ActiveRagdollController available for set_persistent()")
+
+
+## Persistent ragdoll through an animation-GUIDED fall (see
+## [method ActiveRagdollController.set_persistent_guided]): the springs keep chasing
+## the animation you play (e.g. a death clip) at [param strength_scale] of their base,
+## ramping to zero over [param ramp_time] seconds; then the body is limp in PERSISTENT.
+## Release with [method set_persistent](false).
+func set_persistent_guided(strength_scale: float = 0.5, ramp_time: float = 0.5, ease: float = 1.0) -> void:
+	if _active_controller:
+		_active_controller.set_persistent_guided(strength_scale, ramp_time, ease)
+	else:
+		push_warning("KickbackCharacter: no ActiveRagdollController available for set_persistent_guided()")
+
+
+## [method set_persistent_guided] as soon as setup completes. Safe to call at spawn
+## time before the physics rig is built (the guide starts when the rig exists — play
+## the animation right away; the ramp just chases it from wherever it is by then).
+## If setup has already completed, starts immediately.
+func queue_persistent_guided(strength_scale: float = 0.5, ramp_time: float = 0.5, ease: float = 1.0) -> void:
+	if _ready_complete:
+		set_persistent_guided(strength_scale, ramp_time, ease)
+		return
+	_queued_guide = [strength_scale, ramp_time, ease]
+	if not setup_complete.is_connected(_deferred_persistent_guided):
+		setup_complete.connect(_deferred_persistent_guided, CONNECT_ONE_SHOT)
+
+
+## Returns the character root Node3D.
+func get_character_root() -> Node3D:
+	return _character_root
+
+
+## Returns the sibling [ActiveRagdollController], or null if none is present.
+## Use this for the advanced queries/controls not surfaced directly on the facade
+## (balance ratio, fatigue, pain, hit streak, per-bone injuries). The facade
+## covers the common cases (trigger/state/hit routing); this is the escape hatch.
+func get_active_controller() -> ActiveRagdollController:
+	return _active_controller
+
+
+## Recursively finds all KickbackCharacter nodes under [param root].
+static func find_all(root: Node) -> Array[KickbackCharacter]:
+	var result: Array[KickbackCharacter] = []
+	_find_all_recursive(root, result)
+	return result
+
+
+static func _find_all_recursive(node: Node, result: Array[KickbackCharacter]) -> void:
+	if node is KickbackCharacter:
+		result.append(node)
+	for child in node.get_children():
+		_find_all_recursive(child, result)
+
+
+func _deferred_ragdoll() -> void:
+	trigger_ragdoll()
+
+
+func _deferred_persistent() -> void:
+	set_persistent(true)
+
+
+func _deferred_persistent_guided() -> void:
+	set_persistent_guided(_queued_guide[0], _queued_guide[1], _queued_guide[2])
+
+
+func _validate_setup() -> void:
+	var warnings := PackedStringArray()
+
+	if not JoltCheck.is_jolt_active():
+		warnings.append("Jolt Physics is not active — enable in Project Settings > Physics > 3D > Physics Engine")
+
+	var tuning := ragdoll_tuning if ragdoll_tuning else RagdollTuning.create_default()
+	var profile := ragdoll_profile if ragdoll_profile else RagdollProfile.create_mixamo_default()
+
+	# Profile vs the real skeleton: a bone the profile names that the skeleton
+	# lacks means a body the builder silently skips (and an unjointed neighbour).
+	var profile_warnings := profile.validate_against_skeleton(_skeleton)
+	for w: String in profile_warnings:
+		warnings.append("Profile vs skeleton '%s': %s" % [_skeleton.name, w])
+
+	var tuning_warnings := tuning.validate_against_profile(profile)
+	for w: String in tuning_warnings:
+		warnings.append(w)
+
+	if _mode == Mode.NONE:
+		warnings.append("No active ragdoll found — add PhysicsRigBuilder + PhysicsRigSync + SpringResolver + ActiveRagdollController as siblings")
+
+	_setup_warnings = warnings
+	if not warnings.is_empty():
+		var msg := "Kickback [%s]: %d issue(s):" % [get_parent().name, warnings.size()]
+		for w: String in warnings:
+			msg += "\n  - " + w
+		push_warning(msg)

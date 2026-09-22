@@ -18,11 +18,47 @@ Engine: Godot 4.7.2 (installed), Jolt physics (default in 4.7).
 - [ ] Record every source + license in `assets/CREDITS.md` as it's added.
 
 ## Phase 2 — Active ragdoll character (highest-risk item first)
-- [ ] Build a biped rig: `Skeleton3D` + `RigidBody3D` per major bone (pelvis, spine, head, upper/lower arm ×2, hand ×2, upper/lower leg ×2, foot ×2), connected with Jolt joints (`JoltGeneric6DOFJoint3D` or equivalent) with realistic angular limits per joint (elbows/knees are hinges, not full 6DOF).
-- [ ] Implement the "animated target chase" loop: each physics tick, read the bone transform from the animated skeleton, compute the delta to the corresponding physical bone, apply a corrective joint-motor torque scaled by a per-joint stiffness/damping pair.
-- [ ] Tune stiffness low enough that a solid hit overpowers the motors (ragdoll goes limp) but high enough that idle/walk looks controlled, not jittery.
-- [ ] Implement recovery: once the ragdoll's velocity settles below a threshold for N frames, blend the character back toward a "getting up" animation.
-- [ ] Milestone check: character can stand, walk a patrol path, take a shove, fall, and get back up — **before any weapon work starts** (per research.md's recommended build order).
+
+**Revised approach:** rather than hand-rolling the joint-motor/PD-controller system
+described below (still accurate as a fallback plan), we integrated
+[blugart-dev/kickback](https://github.com/blugart-dev/kickback) (MIT, Godot 4.7+,
+Jolt-based) — see `assets/CREDITS.md`. It implements exactly this pattern (16
+`RigidBody3D` bones tracking an animated pose via velocity springs, with
+stagger/ragdoll/recovery states and hit routing) already, including a `melee`
+impact profile. Original from-scratch plan, kept for context:
+~~Build a biped rig: `Skeleton3D` + `RigidBody3D` per major bone (pelvis, spine,
+head, upper/lower arm ×2, hand ×2, upper/lower leg ×2, foot ×2), connected with
+Jolt joints, with per-joint stiffness/damping chasing an animated target pose.~~
+
+- [x] Rigged base character acquired: Quaternius's CC0 "Universal Animation Library"
+  character (Blender Rigify `DEF-` bone naming, 120+ baked animations) —
+  `assets/models/characters/quaternius_universal/universal_character.glb`.
+- [x] Kickback addon vendored into `addons/kickback/`, Jolt Physics + collision
+  layer names configured in `project.godot`.
+- [x] `scenes/player.tscn` + `scripts/player.gd`: instances the character,
+  auto-detects its Rigify bones via `SkeletonDetector`, and attaches the active
+  ragdoll rig at runtime via `KickbackSetup.add_active_rig()`.
+- [x] `scenes/ragdoll_test.tscn`: ground plane + light + player, set as
+  `run/main_scene` for headless verification.
+- [x] Milestone check (**passed**, verified via `godot --headless` runs):
+  character stands stably under gravity for 7+ real seconds with `state=NORMAL`
+  (springs holding the idle pose, no drift/explosion), and a `melee` impact
+  profile hit applied via `receive_hit()` is absorbed cleanly with no errors.
+  Found and fixed one real addon bug in the process (see below).
+- [ ] Walking a patrol path, and a hit strong enough to actually trigger
+  stagger/full ragdoll + get-up recovery, are NOT yet verified — only standing
+  + one moderate hit have been tested. Do this next before Phase 3.
+
+**Bug found & fixed (ours, not upstream-reported yet):** `KickbackSetup.add_active_rig(..., tuning)`
+called with `tuning=null` leaves `ActiveRagdollController._tuning` null after
+setup, even though `ActiveRagdollController._ready()`'s own `_ensure_config()`
+had just filled in a sensible default — `KickbackCharacter._ready()`'s later
+`configure(profile, tuning)` call unconditionally overwrites `_tuning` with
+whatever we passed, with no null fallback (unlike `_ensure_config()`). Any hit
+call (`receive_hit`/`apply_hit`) then warns "called before configure()" and
+no-ops. Workaround used here: always pass an explicit `RagdollTuning.create_default()`
+instead of `null` (see `scripts/player.gd`). Worth upstreaming as a one-line fix
+to `active_ragdoll_controller.gd`'s `configure()`.
 
 ## Phase 3 — Physics-driven weapon
 - [ ] Sword `RigidBody3D` joined to the hand bone via a driven joint; target transform for the joint is computed from mouse-delta (or right-stick) input each frame, translated into a wrist/hand target position+orientation.
