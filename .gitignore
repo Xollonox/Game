@@ -27,3 +27,4 @@ build/
 
 # Local user data
 user_data/
+docs/*.import

@@ -75,6 +75,18 @@ func _ready() -> void:
 	if anim:
 		anim.play.call_deferred(IDLE_ANIM)
 
+	# Tag every rig body with the actor that owns it, so anything that gets a
+	# RigidBody3D from a physics contact (e.g. the sword) can find its way back
+	# to "who did I hit" and "where" (bodies are named after their rig_name).
+	# The bodies don't exist yet here: PhysicsRigBuilder builds them in its own
+	# _ready(), which — like any child added at runtime — doesn't run until a
+	# later frame, so get_bodies() is still empty the instant add_active_rig()
+	# returns.
+	while _rig_builder.get_bodies().is_empty():
+		await get_tree().process_frame
+	for body: RigidBody3D in _rig_builder.get_bodies().values():
+		body.set_meta(&"kickback_actor", self)
+
 
 func _physics_process(delta: float) -> void:
 	_flinch_timer = maxf(0.0, _flinch_timer - delta)
@@ -132,6 +144,12 @@ func receive_hit_at(rig_name: String, hit_dir: Vector3, profile: ImpactProfile) 
 
 func get_state_name() -> String:
 	return kickback_character.get_active_state_name() if kickback_character else "NONE"
+
+
+## Returns the rig's RigidBody3D bones, keyed by rig_name ("Chest", "Hand_R"...).
+## Used to grip-follow a weapon to a hand bone.
+func get_rig_bodies() -> Dictionary:
+	return _rig_builder.get_bodies() if _rig_builder else {}
 
 
 func _on_hit_absorbed(rig_name: String, _strength: float) -> void:

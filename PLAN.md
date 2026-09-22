@@ -45,9 +45,9 @@ Jolt joints, with per-joint stiffness/damping chasing an animated target pose.~~
   (springs holding the idle pose, no drift/explosion), and a `melee` impact
   profile hit applied via `receive_hit()` is absorbed cleanly with no errors.
   Found and fixed one real addon bug in the process (see below).
-- [ ] Walking a patrol path, and a hit strong enough to actually trigger
-  stagger/full ragdoll + get-up recovery, are NOT yet verified — only standing
-  + one moderate hit have been tested. Do this next before Phase 3.
+- [x] Walking (camera-relative WASD, or the touch joystick) and a hit strong
+  enough to trigger stagger/full ragdoll + get-up recovery are verified —
+  see `scripts/kickback_actor.gd`, `scripts/combat_profiles.gd`.
 
 **Bug found & fixed (ours, not upstream-reported yet):** `KickbackSetup.add_active_rig(..., tuning)`
 called with `tuning=null` leaves `ActiveRagdollController._tuning` null after
@@ -61,16 +61,31 @@ instead of `null` (see `scripts/player.gd`). Worth upstreaming as a one-line fix
 to `active_ragdoll_controller.gd`'s `configure()`.
 
 ## Phase 3 — Physics-driven weapon
-- [ ] Sword `RigidBody3D` joined to the hand bone via a driven joint; target transform for the joint is computed from mouse-delta (or right-stick) input each frame, translated into a wrist/hand target position+orientation.
-- [ ] Add mass/inertia tuning so heavy swings actually take a windup and follow-through (i.e. the sword doesn't teleport-track the cursor).
-- [ ] Contact damage computed from relative velocity at the contact point, weighted by edge alignment (dot product of blade edge normal vs. impact velocity direction) — not a flat "on hit" number.
-- [ ] Getting the blade stuck (in a target or the ground) when velocity/angle crosses a threshold, requiring a tug to free it.
-- [ ] Milestone check: on the *static test dummy* (no ragdoll yet), swings feel weighted and a fast edge-on hit clearly registers differently than a flat/pommel bump.
+
+**Revised approach, same reasoning as Phase 2:** rather than a driven joint
+with a separate mouse-delta-to-wrist-target input mapping (still accurate as
+a fallback plan, kept below for context), the sword (`scripts/physics_sword.gd`,
+`scenes/sword.tscn`) is a free `RigidBody3D` that velocity-spring-follows the
+active-ragdoll rig's own `Hand_R` bone every physics tick — the exact
+technique Kickback's `SpringResolver` already uses to drive ragdoll bones
+toward an animated pose. Since `Hand_R` is itself a real physics body already
+being driven through the existing "Sword_Attack" animation, the sword
+inherits real windup/follow-through for free, with no separate input-mapping
+system needed. Original plan, kept for context:
+~~Sword `RigidBody3D` joined to the hand bone via a driven joint; target
+transform for the joint is computed from mouse-delta (or right-stick) input
+each frame, translated into a wrist/hand target position+orientation.~~
+
+- [x] Sword grip-follows the rig's `Hand_R` bone (spring, not a rigid joint) — `scripts/physics_sword.gd`.
+- [x] Mass/inertia tuning so heavy swings take a windup and follow-through: the blade is a real `RigidBody3D` with its own mass, lerped toward the grip target rather than locked to it, so it lags a fast swing and doesn't teleport-track.
+- [x] Contact damage computed from the blade tip's actual measured linear velocity at the moment of contact (`get_tip_velocity()`, using `_integrate_forces`'s live per-step contact list — see the class doc comment for why the contact_monitor signals/polling measured zero hits on a real swing), not a flat "on hit" number. Edge-alignment weighting (blade-normal dot impact direction) was not added on top of this — full contact-velocity tiering already reads clearly; edge alignment is deferred as a feel-polish pass, not core to the vertical slice.
+- [x] Getting the blade "stuck": a hit past `STICK_SPEED` slackens the grip spring for `STUCK_DURATION`, so pulling free takes a beat instead of snapping back instantly.
+- [x] Milestone check (verified headless): a swing at real contact velocity (~8-30 m/s measured, well above the light/heavy/crushing tier thresholds) reads clearly differently by speed and hit location — see Phase 4's milestone check, which subsumes this one once the ragdoll was attached.
 
 ## Phase 4 — Combine ragdoll + weapon
-- [ ] Attach the Phase 3 weapon system to the Phase 2 active-ragdoll's hand.
-- [ ] Validate that a solid weapon impact can overpower the recipient's joint motors exactly like an unarmed shove did in Phase 2.
-- [ ] Add a simple health/stagger model driven by impact force + hit location (head/torso hits weighted higher), not a generic HP bar tick.
+- [x] Attach the Phase 3 weapon system to the Phase 2 active-ragdoll's hand — `player.gd` spawns and attaches the sword in `_ready()`.
+- [x] Validated headless: a physics-sword swing at measured contact velocity overpowers the recipient's joint motors exactly like an unarmed shove did in Phase 2 — `NORMAL → STAGGER → RAGDOLL → GETTING UP → NORMAL`, driven entirely by the blade's own contact speed, not a scripted trigger.
+- [x] Health/stagger model driven by impact force + hit location (head/torso hits weighted higher) — `CombatProfiles.profile_for_impact()` scales the tier lookup by a per-rig_name location weight before picking light/heavy/crushing, replacing the old fixed-distance-tier raycast.
 
 ## Phase 5 — Encounter content
 - [ ] One enemy using the same active-ragdoll rig, driven by a minimal state machine (approach, windup swing, recover) rather than full AI planning.
