@@ -57,7 +57,10 @@ var _hit_streams: Array[AudioStream] = []
 var _swish_streams: Array[AudioStream] = []
 var _clash_streams: Array[AudioStream] = []
 var _footstep_streams: Array[AudioStream] = []
-var _blood_enabled := true
+## Public so the arena can honour the player's Blood setting.
+var blood_enabled := true
+## Public so the arena can honour the Quality setting (particle budgets).
+var quality_high := true
 var _rng := RandomNumberGenerator.new()
 
 ## Hit-stop deadline in *real* milliseconds. Engine.time_scale is what produces
@@ -68,7 +71,7 @@ var _hitstop_until_ms := 0
 
 func _ready() -> void:
 	_rng.randomize()
-	_blood_enabled = not OS.get_cmdline_user_args().has("--noblood")
+	blood_enabled = not OS.get_cmdline_user_args().has("--noblood")
 	var blood_tex := _make_blood_texture()
 	_build_bursts()
 	_build_splats(blood_tex)
@@ -112,7 +115,7 @@ func impact(pos: Vector3, dir: Vector3, severity: float) -> void:
 
 ## Blood burst plus a ground splat under the impact.
 func spray(pos: Vector3, dir: Vector3, severity: float) -> void:
-	if not _blood_enabled:
+	if not blood_enabled:
 		return
 	if _bursts.is_empty():
 		return
@@ -120,7 +123,7 @@ func spray(pos: Vector3, dir: Vector3, severity: float) -> void:
 	_next_burst = (_next_burst + 1) % _bursts.size()
 	p.global_position = pos
 	p.direction = dir.normalized() if dir.length_squared() > 0.001 else Vector3.UP
-	p.amount = int(lerpf(10.0, 44.0, severity))
+	p.amount = int(lerpf(10.0, 44.0, severity) * (1.0 if quality_high else 0.55))
 	p.initial_velocity_min = lerpf(1.2, 3.0, severity)
 	p.initial_velocity_max = lerpf(3.5, 9.0, severity)
 	p.scale_amount_min = lerpf(0.018, 0.03, severity)

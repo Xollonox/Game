@@ -1,54 +1,81 @@
 # Asset Credits & Licenses
 
-Every asset in `assets/` must be tracked here with its source and license, per the rule in `research.md` §4. CC0 is preferred; nothing NC (non-commercial) or ND (no-derivatives) is allowed.
+Every asset in `assets/` is tracked here with its source and license, per the rule in `research.md` §4. CC0 is preferred; nothing NC (non-commercial) or ND (no-derivatives) is allowed.
 
-## Downloaded and vendored in this repo
+## 3D Models — original to this repo
 
-### 3D Models — `assets/models/weapons/swords_pack/` (`fbx/`, `obj_mtl/`)
+### Weapons — `assets/models/weapons/swords_pack/`
 - **Source:** [3D Swords Pack](https://opengameart.org/content/3d-swords-pack) — OpenGameArt.org
 - **License:** CC0 (public domain)
-- **Contents:** 9 low-poly sword models, provided as `.fbx` and `.obj`/`.mtl`. The pack's `.blend` sources were dropped: Blender isn't installed in this environment (Godot's `.blend` importer shells out to a real Blender binary), and the `.fbx`/`.obj` exports are sufficient for the game.
-- **Attribution:** Not required (CC0), credited here anyway for provenance.
+- **Contents:** 9 low-poly sword models (`.fbx` + `.obj`/`.mtl`).
 
-### Character model + animations — `assets/models/characters/quaternius_universal/universal_character.glb`
-- **Source:** [Universal Animation Library](https://store.godotengine.org/asset/quaternius/universal-animation-library/) by Quaternius — Godot Asset Store (official mirror; the itch.io page for the same asset has no anonymous download, see below)
-- **License:** CC0 1.0 Universal (`LICENSE.txt` alongside the file is the pack's own license notice)
-- **Contents:** One rigged humanoid character (Blender Rigify `DEF-` bone naming) with 120+ baked-in animation clips (locomotion, combat, reactions). This is the base mesh + skeleton the Phase 2 active-ragdoll rig (`scripts/player.gd`) attaches to.
-- **Attribution:** Not required (CC0).
+### Character — `assets/models/characters/quaternius_universal/universal_character.glb`
+- **Source:** [Universal Animation Library](https://store.godotengine.org/asset/quaternius/universal-animation-library/) by Quaternius — Godot Asset Store (official mirror)
+- **License:** CC0 1.0 Universal
+- **Contents:** One rigged humanoid (Blender Rigify `DEF-` bones) with 120+ baked animation clips.
 
-### Physics/animation addon — `addons/kickback/`
-- **Source:** [blugart-dev/kickback](https://github.com/blugart-dev/kickback) (git commit at time of vendoring: see `git log` on this addon's introduction)
+### Physics addon — `addons/kickback/`
+- **Source:** [blugart-dev/kickback](https://github.com/blugart-dev/kickback)
 - **License:** MIT — full text at `addons/kickback/LICENSE`
-- **What it is:** A Euphoria-style active-ragdoll plugin for Godot 4.7+ / Jolt Physics: builds a 16-`RigidBody3D` physics skeleton that tracks the animated pose via velocity springs, with stagger/full-ragdoll/recovery states, hit routing, and skeleton auto-detection (Mixamo, Rigify `DEF-`, UE5 Mannequin, generic rigs). This is the core of `PLAN.md` Phase 2 — we did not write an active-ragdoll solver from scratch; we integrated this one and fixed one real bug in it (see `scripts/player.gd`'s comment on `RagdollTuning`).
-- **Not vendored:** the repo's own `addons/gut/` (its test framework) and `demo/`/`docs/`/`test/` folders — we only took the reusable `addons/kickback/` plugin itself.
+- **What it is:** Euphoria-style active-ragdoll plugin for Godot 4.7+ / Jolt.
 
-### SFX — `assets/sfx/battle/battle_sfx/`
-- **Source:** [Battle Sound Effects](https://opengameart.org/content/battle-sound-effects) — OpenGameArt.org
-- **License:** CC0 (the pack is multi-licensed CC-BY/CC-BY-SA/GPL/CC0 by the uploader; we use it under the **CC0** option specifically)
-- **Contents:** `swish_2.wav`, `swish_3.wav`, `swish_4.wav`, `Bow.wav`
-- **Attribution:** Not required under the CC0 option chosen.
+## Generated derivatives (built by this repo's headless Blender pipeline)
 
-### SFX — `assets/sfx/impacts/hits_punches/`
-- **Source:** [37 hits/punches](https://opengameart.org/content/37-hitspunches) by Independent.nu — OpenGameArt.org
-- **License:** CC0 (public domain)
-- **Contents:** `hits/hit01.ogg` through `hit37.ogg` (37 impact sounds). The pack ships these as `.flac` (misnamed `.mp3.flac`); Godot has no `.flac` importer at all (only `.wav`/`.ogg`/`.mp3`), so they were re-encoded to Ogg Vorbis with `ffmpeg` before vendoring — otherwise they'd sit in the repo unusable by the engine.
-- **Attribution:** Not required (CC0), credited here anyway for provenance.
+All of the following were generated from this repository's own CC0 source assets by `tools/blender/` — no third-party files are redistributed in them.
 
-## Identified but NOT yet acquired (needs a manual step)
+- `assets/models/weapons/fixed/sword_1.glb`, `sword_3.glb`, `sword_8.glb` — sword meshes re-scaled, re-pivoted (grip at origin) and re-oriented (blade on local −Z) by `tools/blender/build_world_kit.py`'s sibling pass.
+- `assets/models/characters/armored/universal_character_armored.glb` — Quaternius base mesh + procedural armour (helmet, visor, crest, pauldrons, chest plate, belt, tassets), 46 animations preserved, 53 bones.
+- `assets/models/world/kit/*.glb` — **48-piece medieval world kit** generated by `tools/blender/build_world_kit.py`: stone walls / gatehouse / towers / buttresses / stairs, timber stands / roofs / shed / fences / palisade / half-timber wall / platform, props (barrels, crates, cart, cage, hay, sacks, firewood, log pile, brazier, banners, weapon rack, training dummy, table, bench, bucket, spare wheel, grindstone), terrain dressing (mud patches, puddles, rubble, rocks, grass tufts, dirt mound) and background village houses. LODs are emitted for the gatehouse, towers and houses.
 
-itch.io's "name your own price" pages (including $0/free CC0 items) require clicking through an interactive claim/checkout flow tied to an account — there is no anonymous direct-download URL, so these could not be fetched headlessly in this session. A human needs to visit and claim these once, after which they can be added under `assets/animations/`:
+## Textures — PBR sets in `assets/textures/world/`
 
-- **[Human Melee Animations](https://kevdev.itch.io/human-melee-animations) by kevdev** — free tier, dedicated sword swing/parry/block set. (The base Universal Animation Library equivalent was obtained instead via the Godot Asset Store direct download — see above — so this is now supplemental, not blocking.)
+All textures are downscaled to 1024 px JPEG for the web budget (documented here as a modification).
 
-## Other sources identified in research (not yet pulled)
+### Poly Haven (CC0)
+- `ground` — [cobblestone_floor_02](https://polyhaven.com/a/cobblestone_floor_02)
+- `stone` — [castle_brick_07](https://polyhaven.com/a/castle_brick_07)
+- `wood` — [wood_planks](https://polyhaven.com/a/wood_planks)
+- `plaster` — [painted_plaster_wall](https://polyhaven.com/a/painted_plaster_wall)
+- `cloth` — [fabric_pattern_07](https://polyhaven.com/a/fabric_pattern_07)
+- `roof` — [clay_roof_tiles](https://polyhaven.com/a/clay_roof_tiles)
+- `straw` — [thatch_roof_angled](https://polyhaven.com/a/thatch_roof_angled)
+- **License:** CC0 1.0 Universal (https://polyhaven.com/license)
 
-See `research.md` §4 for the full list, including Poly Haven weapon models, OpenGameArt's "CC0 - 3D Weapons" and "Cethiel's Weapons 3D", and Freesound.org for supplemental foley — pull from these only under the CC0/CC-BY rule above, and add an entry here for anything added.
+### ambientCG (CC0)
+- `grass` — [Grass001](https://ambientcg.com/view?id=Grass001)
+- `cloth2` — [Fabric066](https://ambientcg.com/view?id=Fabric066)
+- **License:** CC0 1.0 Universal
 
-## Kenney CC0 assets
-- Impact Sounds — footsteps and metal plate impacts
-- Castle Kit, Fantasy Town Kit, Survival Kit — arena props
-- Creator: Kenney (https://kenney.nl/)
-- License: CC0 1.0 Universal
+## Fonts — `assets/fonts/`
 
-## Generated derivatives
-- Fixed sword pivots/scales and armored character GLB were built headlessly in Blender from the repository's original CC0 assets.
+All under the SIL Open Font License 1.1 (OFL), which permits bundling and modification; each is redistributed unmodified.
+
+- `Cinzel.ttf` (variable) — Natanael Gama — https://fonts.google.com/specimen/Cinzel
+- `CinzelDecorative-Bold.ttf` — Natanael Gama — https://fonts.google.com/specimen/Cinzel+Decorative
+- `EBGaramond.ttf` (variable) — Georg Duffner, Octavio Pardo — https://fonts.google.com/specimen/EB+Garamond
+- `GrenzeGotisch.ttf` (variable) — Christian Thalmann, OmniType — https://fonts.google.com/specimen/Grenze+Gotisch
+
+## Audio — `assets/audio/`
+
+### Kenney (CC0)
+- **Impact Sounds** — https://kenney.nl/assets/impact-sounds — metal plate impacts used for weapon clashes (`assets/sfx/kenney/metal/`) and concrete footsteps (`assets/sfx/kenney/footsteps/`).
+- **UI Audio** — https://kenney.nl/assets/ui-audio — interface clicks and hovers (`assets/audio/ui/`).
+- **Castle Kit / Fantasy Town Kit / Survival Kit / Nature Kit** — https://kenney.nl/assets — reference geometry and material study for the Blender world kit.
+- **License:** CC0 1.0 Universal
+
+### OpenGameArt (CC0)
+- **Crowd Shouting/Speaking Ambience** by StarNinjas — https://opengameart.org/content/crowd-shoutingspeaking-ambience — arena crowd bed (`Ambience_Crowd.ogg`).
+- **Medieval: The Old Tower Inn** — https://opengameart.org/content/medieval-the-old-tower-inn — menu theme (`Loop_The_Old_Tower_Inn.ogg`). The loop variant was re-encoded from WAV to Ogg Vorbis for the web budget.
+- **Medieval: Rejoicing** — https://opengameart.org/content/medieval-rejoicing — fight theme (`Loop_Rejoicing.ogg`). Same re-encode.
+- **CC0 Fantasy Music & Sounds** by Sir Gawain — https://opengameart.org/content/cc0-fantasy-music-sounds — open-air wind bed (`Forest_Ambience.ogg`, re-encoded from MP3 to Ogg Vorbis).
+- **License:** CC0 1.0 Universal (attribution not required; recorded here for provenance).
+
+### SFX — `assets/sfx/`
+- **Battle Sound Effects** — https://opengameart.org/content/battle-sound-effects — CC0 option chosen; swish/whoosh sounds.
+- **37 hits/punches** by Independent.nu — https://opengameart.org/content/37-hitspunches — CC0; re-encoded FLAC→Ogg Vorbis because Godot has no FLAC importer.
+
+## Identified but NOT acquired
+
+itch.io "name your own price" pages need an interactive claim flow, so they cannot be fetched headlessly:
+
+- [Human Melee Animations](https://kevdev.itch.io/human-melee-animations) by kevdev — supplemental sword set; the Quaternius library already covers the needs of the current build.

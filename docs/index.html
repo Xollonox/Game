@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
-		<title>Game</title>
+		<title>Bare Steel</title>
 		<style>
 html, body, #canvas {
 	margin: 0;
@@ -38,7 +38,7 @@ body {
 }
 
 #status {
-	background-color: #242424;
+	background-color: #0d0c0b;
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
@@ -92,7 +92,16 @@ body {
 		</style>
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
 <link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
-
+<style>
+@font-face { font-family: 'CinzelX'; src: url('Cinzel.ttf'); }
+html, body { background: #0d0c0b; margin: 0; }
+#status { color: #cfc5b4; font-family: 'CinzelX', serif; font-size: 19px; letter-spacing: .28em; text-transform: uppercase; }
+#status-progress { background: #241d16; border: 1px solid #4a3c28; height: 6px; }
+#status-progress-inner { background: #8e2b20; height: 100%; }
+progress::-webkit-progress-value { background: #8e2b20; }
+progress::-moz-progress-bar { background: #8e2b20; }
+#status-notice { color: #8d8577; font-family: 'CinzelX', serif; letter-spacing: .1em; }
+</style>
 	</head>
 	<body>
 		<canvas id="canvas">
@@ -111,7 +120,7 @@ body {
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":4460992,"index.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":34997560,"index.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 

@@ -6,8 +6,6 @@ extends Node3D
 ## Everything visible comes from the headless-Blender kit in
 ## `assets/models/world/kit/` (see `tools/blender/build_world_kit.py`) so the
 ## world is modular and reusable rather than a pile of one-off meshes.
-## Materials are shared per kit slot (`scripts/world_materials.gd`), which is
-## what keeps the draw-call count inside the web budget.
 ##
 ## Composition rules this file follows:
 ## - The fighting ring (r < 7) stays clear; every prop lives outside it.
@@ -15,12 +13,19 @@ extends Node3D
 ##   > sheds/props > scatter, so the eye always has somewhere to land.
 ## - Clutter is clustered, never evenly sprinkled: carts/crates sit together by
 ##   the gate, training gear sits by the stands, camp gear sits by the fire.
+##
+## Performance shape: the world is ~200 kit instances, which as individual
+## MeshInstance3D nodes is ~1000 draw calls — the wrong budget to spend on the
+## web renderer, where draw-call overhead dominates and the pieces never move.
+## `_batch_static()` merges them into one surface per shared material, and the
+## colliders are re-parented out first so physics is untouched.
 
 const RING_RADIUS := 9.0
 const WALL_RADIUS := 15.0
 
 var _rng := RandomNumberGenerator.new()
 var _kit_cache: Dictionary = {}
+var _placed: Array[Node3D] = []
 var _braziers: Array[OmniLight3D] = []
 var _brazier_phase: PackedFloat32Array = []
 var _brazier_base: PackedFloat32Array = []
@@ -39,6 +44,7 @@ func _ready() -> void:
 	_build_terrain_dressing()
 	_build_background()
 	_build_fires()
+	_batch_static()
 
 
 func _process(delta: float) -> void:
@@ -63,8 +69,10 @@ func _process(delta: float) -> void:
 # ------------------------------------------------------------------ kit -----
 ## Instantiates a kit piece, dresses it with shared materials, optionally gives
 ## it a box collider sized from its bounds, and parents it to [param into].
+## Pieces marked [param dynamic] (banners, which sway) are exempt from static
+## batching because their transforms keep changing.
 func place(name: String, pos: Vector3, rot_y := 0.0, into: Node3D = self,
-		collide := false, scale := 1.0, lod := "") -> Node3D:
+		collide := false, scale := 1.0, lod := "", dynamic := false) -> Node3D:
 	var use := name if lod == "" else name + lod
 	if not _kit_cache.has(use):
 		var path := "res://assets/models/world/kit/%s.glb" % use
@@ -80,6 +88,8 @@ func place(name: String, pos: Vector3, rot_y := 0.0, into: Node3D = self,
 	WorldMaterials.dress(inst)
 	if collide:
 		_add_box_collision(inst)
+	if not dynamic:
+		_placed.append(inst)
 	return inst
 
 
@@ -114,6 +124,59 @@ func _instance_aabb(root: Node3D) -> AABB:
 		merged = a if first else merged.merge(a)
 		first = false
 	return merged
+
+
+## Static batching: merge every non-dynamic kit piece into one surface per
+## shared material. Colliders are re-parented to a sibling node first (keeping
+## their world transforms), so the physics shape of the yard is unchanged.
+func _batch_static() -> void:
+	var batches: Dictionary = {}
+	for inst in _placed:
+		if not is_instance_valid(inst):
+			continue
+		for mi in inst.find_children("*", "MeshInstance3D", true, false):
+			var node := mi as MeshInstance3D
+			var mesh := node.mesh
+			if mesh == null:
+				continue
+			var xf := node.global_transform
+			for s in mesh.get_surface_count():
+				var mat: Material = node.get_surface_override_material(s)
+				if mat == null:
+					mat = mesh.surface_get_material(s)
+				if mat == null:
+					continue
+				if not batches.has(mat):
+					var st := SurfaceTool.new()
+					st.begin(Mesh.PRIMITIVE_TRIANGLES)
+					batches[mat] = st
+				(batches[mat] as SurfaceTool).append_from(mesh, s, xf)
+
+	# Preserve collision: move the static bodies out before freeing the visuals.
+	var collider_root := Node3D.new()
+	collider_root.name = "Colliders"
+	add_child(collider_root)
+	for inst in _placed:
+		if not is_instance_valid(inst):
+			continue
+		for child in inst.get_children():
+			if child is StaticBody3D:
+				child.reparent(collider_root, true)
+	for inst in _placed:
+		if is_instance_valid(inst):
+			inst.free()
+	_placed.clear()
+
+	var batched := Node3D.new()
+	batched.name = "Batched"
+	add_child(batched)
+	for mat in batches:
+		var st: SurfaceTool = batches[mat]
+		st.generate_tangents()
+		var mi := MeshInstance3D.new()
+		mi.mesh = st.commit()
+		mi.material_override = mat
+		batched.add_child(mi)
 
 
 # -------------------------------------------------------------- ground -----
@@ -198,9 +261,11 @@ func _build_stands() -> void:
 		place("stand_section", pos, yaw, stands, true)
 		place("stand_roof", pos + Vector3(sin(a) * 0.9, 0.0, -cos(a) * 0.9), yaw, stands)
 		_banners.append(place("banner_red" if spec[1] < 0.0 else "banner_blue",
-			pos + Vector3(sin(a + 0.35) * 1.9, 0.0, -cos(a + 0.35) * 1.9), yaw, stands, true))
+			pos + Vector3(sin(a + 0.35) * 1.9, 0.0, -cos(a + 0.35) * 1.9), yaw, stands, true,
+			1.0, "", true))
 		_banners.append(place("banner_blue" if spec[1] < 0.0 else "banner_red",
-			pos + Vector3(sin(a - 0.35) * 1.9, 0.0, -cos(a - 0.35) * 1.9), yaw, stands, true))
+			pos + Vector3(sin(a - 0.35) * 1.9, 0.0, -cos(a - 0.35) * 1.9), yaw, stands, true,
+			1.0, "", true))
 
 
 # ------------------------------------------------------------ gate area ----
@@ -209,23 +274,25 @@ func _build_gate_area() -> void:
 	area.name = "GateArea"
 	add_child(area)
 	# Supply clutter clustered either side of the gate — a working gate is a
-	# busy gate, and this is the first thing the camera sees.
+	# busy gate, and this is the first thing the camera sees. Only the pieces a
+	# body could realistically be stopped by carry collision; small dressing is
+	# visual-only so the fight never snags on a bucket.
 	place("cart", Vector3(-4.6, 0.0, -11.4), 0.45, area, true)
-	place("crate", Vector3(-6.3, 0.0, -12.1), 0.3, area, true)
-	place("crate", Vector3(-6.9, 0.0, -11.3), 0.9, area, true)
-	place("crate", Vector3(-6.0, 0.0, -12.9), -0.2, area, true)
-	place("barrel", Vector3(-3.2, 0.0, -12.3), 0.0, area, true)
-	place("barrel", Vector3(-2.5, 0.0, -12.7), 0.4, area, true)
-	place("sack", Vector3(-3.6, 0.0, -11.6), 0.0, area, true)
-	place("sack", Vector3(-4.1, 0.0, -11.1), 1.2, area, true)
+	place("crate", Vector3(-6.3, 0.0, -12.1), 0.3, area)
+	place("crate", Vector3(-6.9, 0.0, -11.3), 0.9, area)
+	place("crate", Vector3(-6.0, 0.0, -12.9), -0.2, area)
+	place("barrel", Vector3(-3.2, 0.0, -12.3), 0.0, area)
+	place("barrel", Vector3(-2.5, 0.0, -12.7), 0.4, area)
+	place("sack", Vector3(-3.6, 0.0, -11.6), 0.0, area)
+	place("sack", Vector3(-4.1, 0.0, -11.1), 1.2, area)
 	place("cage", Vector3(4.4, 0.0, -11.8), -0.35, area, true)
 	place("log_pile", Vector3(6.2, 0.0, -11.0), 0.25, area, true)
-	place("hay_bale", Vector3(5.2, 0.0, -12.4), 0.15, area, true)
-	place("wheel_spare", Vector3(-7.6, 0.0, -10.4), 0.0, area, true)
-	place("bucket", Vector3(-2.2, 0.0, -11.4), 0.0, area, true)
+	place("hay_bale", Vector3(5.2, 0.0, -12.4), 0.15, area)
+	place("wheel_spare", Vector3(-7.6, 0.0, -10.4), 0.0, area)
+	place("bucket", Vector3(-2.2, 0.0, -11.4), 0.0, area)
 	# Faction banners flanking the gate: the landmark reads from across the yard.
-	_banners.append(place("banner_red", Vector3(-3.4, 0.0, -13.15), 0.0, area, true))
-	_banners.append(place("banner_blue", Vector3(3.4, 0.0, -13.15), 0.0, area, true))
+	_banners.append(place("banner_red", Vector3(-3.4, 0.0, -13.15), 0.0, area, true, 1.0, "", true))
+	_banners.append(place("banner_blue", Vector3(3.4, 0.0, -13.15), 0.0, area, true, 1.0, "", true))
 
 
 # --------------------------------------------------------- training area ---
@@ -238,9 +305,9 @@ func _build_training_area() -> void:
 	place("weapon_rack", Vector3(-9.2, 0.0, 4.4), 1.5, area, true)
 	place("training_dummy", Vector3(-7.6, 0.0, 6.4), 0.0, area, true)
 	place("training_dummy", Vector3(-8.9, 0.0, 7.4), 0.5, area, true)
-	place("grindstone", Vector3(-9.6, 0.0, 0.8), 0.8, area, true)
-	place("crate", Vector3(-8.2, 0.0, 0.2), 0.4, area, true)
-	place("barrel", Vector3(-9.4, 0.0, -1.2), 0.0, area, true)
+	place("grindstone", Vector3(-9.6, 0.0, 0.8), 0.8, area)
+	place("crate", Vector3(-8.2, 0.0, 0.2), 0.4, area)
+	place("barrel", Vector3(-9.4, 0.0, -1.2), 0.0, area)
 
 
 # -------------------------------------------------------------- camp -------
@@ -250,14 +317,14 @@ func _build_camp_area() -> void:
 	add_child(area)
 	# The east side reads as the fighters' camp: table, bench, firewood, shed.
 	place("shed", Vector3(10.4, 0.0, 4.6), -1.2, area, true)
-	place("table", Vector3(8.2, 0.0, 7.4), 0.5, area, true)
-	place("bench", Vector3(8.0, 0.0, 5.9), 0.5, area, true)
-	place("firewood", Vector3(9.6, 0.0, 1.4), 0.3, area, true)
-	place("firewood", Vector3(10.2, 0.0, 0.7), 1.1, area, true)
+	place("table", Vector3(8.2, 0.0, 7.4), 0.5, area)
+	place("bench", Vector3(8.0, 0.0, 5.9), 0.5, area)
+	place("firewood", Vector3(9.6, 0.0, 1.4), 0.3, area)
+	place("firewood", Vector3(10.2, 0.0, 0.7), 1.1, area)
 	place("log_pile", Vector3(11.2, 0.0, 2.4), -0.4, area, true)
-	place("barrel", Vector3(11.0, 0.0, 6.6), 0.0, area, true)
-	place("sack", Vector3(9.2, 0.0, 6.8), 0.8, area, true)
-	place("crate", Vector3(11.4, 0.0, 5.4), -0.3, area, true)
+	place("barrel", Vector3(11.0, 0.0, 6.6), 0.0, area)
+	place("sack", Vector3(9.2, 0.0, 6.8), 0.8, area)
+	place("crate", Vector3(11.4, 0.0, 5.4), -0.3, area)
 
 
 # ---------------------------------------------------- terrain dressing -----
