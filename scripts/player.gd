@@ -1,61 +1,64 @@
-extends Node3D
-## Player character: a Quaternius Rigify-rigged mesh with a Kickback
-## active-ragdoll rig attached at runtime (see KickbackSetup.add_active_rig).
-## Phase 2 of PLAN.md — get this standing/reacting believably before any
-## weapon work starts.
+extends KickbackActor
+## Player: WASD walking (camera-relative) and a sword swing that lands a heavy
+## hit on any dummy in front of it. Phase 2/3 of PLAN.md.
 
-@onready var model: Node3D = $Model
+const ATTACK_RANGE := 2.2
+const ATTACK_ARC_DOT := 0.35
+## Delay between the swing starting and the blow landing, so the hit lines up
+## with the animation's contact frame rather than the keypress.
+const ATTACK_CONTACT_DELAY := 0.28
 
-var kickback_character: KickbackCharacter
+signal landed_hit(target_name: String, profile_name: String)
 
+var camera: Camera3D
 
-func _ready() -> void:
-	var skeleton := KickbackSetup.find_skeleton(model)
-	if not skeleton:
-		push_error("Player: no Skeleton3D found under Model")
-		return
-
-	# ragdoll_profile defaults to a hardcoded Mixamo bone-name profile unless we
-	# build one ourselves — our rig uses Blender Rigify DEF- names, so we run
-	# the auto-detector explicitly rather than relying on the null fallback.
-	var bone_mapping := SkeletonDetector.detect_humanoid_bones(skeleton)
-	var profile := SkeletonDetector.create_profile_from_skeleton(skeleton, bone_mapping)
-
-	# Pass an explicit RagdollTuning, not null: ActiveRagdollController's own
-	# _ready() fills in a sensible default when tuning is null, but
-	# KickbackCharacter._ready() then calls configure(profile, tuning) with
-	# whatever we passed here, unconditionally overwriting that default with
-	# null again if we don't supply our own.
-	var tuning := RagdollTuning.create_default()
-	var nodes := KickbackSetup.add_active_rig(self, skeleton, profile, tuning)
-	kickback_character = nodes.back() as KickbackCharacter
-
-	var active_controller := kickback_character.get_active_controller()
-	if active_controller:
-		active_controller.ragdoll_started.connect(_on_ragdoll_started)
-		active_controller.recovery_finished.connect(_on_recovery_finished)
-
-	print("Player ready: active ragdoll attached to skeleton with %d bones" % skeleton.get_bone_count())
+var _pending_contact := -1.0
 
 
-## Route a hit at a specific rig body (e.g. "Chest", "Hand_R") into the active
-## ragdoll. Phase 3's weapon system and Phase 5's enemy attacks both call this;
-## for now it's exercised manually from the ragdoll_test.tscn debug HUD.
-func apply_hit_to_bone(rig_name: String, hit_dir: Vector3, profile: ImpactProfile) -> void:
-	if not kickback_character:
-		return
-	var rig_builder := get_node_or_null("PhysicsRigBuilder")
-	if not rig_builder:
-		return
-	var bodies: Dictionary = rig_builder.get_bodies()
-	var body: RigidBody3D = bodies.get(rig_name)
-	if body:
-		kickback_character.receive_hit(body, hit_dir, body.global_position, profile)
+func _physics_process(delta: float) -> void:
+	var input_2d := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	move_dir = _camera_relative(input_2d)
+	super._physics_process(delta)
+
+	if Input.is_action_just_pressed("attack") and swing():
+		_pending_contact = ATTACK_CONTACT_DELAY
+
+	if _pending_contact >= 0.0:
+		_pending_contact -= delta
+		if _pending_contact < 0.0:
+			_resolve_swing()
 
 
-func _on_ragdoll_started() -> void:
-	print("Player ragdolled")
+func _camera_relative(input_2d: Vector2) -> Vector3:
+	if input_2d == Vector2.ZERO:
+		return Vector3.ZERO
+	var basis_z := Vector3.FORWARD
+	var basis_x := Vector3.RIGHT
+	if camera:
+		basis_z = -camera.global_basis.z
+		basis_x = camera.global_basis.x
+		basis_z.y = 0.0
+		basis_x.y = 0.0
+		basis_z = basis_z.normalized()
+		basis_x = basis_x.normalized()
+	return (basis_x * input_2d.x + basis_z * -input_2d.y).normalized()
 
 
-func _on_recovery_finished() -> void:
-	print("Player recovered")
+func _resolve_swing() -> void:
+	var forward := -global_basis.z
+	for node in get_tree().get_nodes_in_group("hittable"):
+		var target := node as KickbackActor
+		if not target or target == self:
+			continue
+		var to_target := target.global_position - global_position
+		to_target.y = 0.0
+		var dist := to_target.length()
+		if dist > ATTACK_RANGE or dist < 0.01:
+			continue
+		if forward.dot(to_target / dist) < ATTACK_ARC_DOT:
+			continue
+		# Closer hits land cleaner: a blow at the edge of reach only staggers.
+		var profile := CombatProfiles.crushing_blow() if dist < ATTACK_RANGE * 0.6 \
+			else CombatProfiles.heavy_swing()
+		target.receive_hit_at("Chest", (to_target / dist), profile)
+		landed_hit.emit(target.name, String(profile.profile_name))
