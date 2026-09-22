@@ -1,0 +1,29 @@
+# Godot 4+ specific ignores
+.godot/
+*.log
+
+# Imported assets
+.gdignore
+imported/
+
+# Exclude user-specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+dist/
+build/
+*.o
+*.a
+*.so
+
+# IDE
+*.sublime-workspace
+*.sublime-project
+
+# Local user data
+user_data/
