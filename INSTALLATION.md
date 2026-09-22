@@ -1,13 +1,34 @@
 # Godot Engine Installation Guide
 
-This is a Godot game project. To develop and run this game, you need to install Godot Engine.
+This is a Godot game project. To develop and run this game, you need to install Godot Engine 4.7+ (latest stable).
 
-## Installation Instructions
+## Quick Installation (Recommended)
+
+Run the included installation script to download and install the latest Godot Engine:
+
+```bash
+chmod +x install-godot.sh
+./install-godot.sh
+```
+
+This script will:
+- Detect your OS (Linux, macOS, Windows)
+- Download the latest stable Godot 4.7+
+- Extract it to `~/.godot/`
+- Create a symlink at `~/.local/bin/godot`
+- Guide you to add it to your PATH if needed
+
+After installation, open the project with:
+```bash
+godot project.godot
+```
+
+## Manual Installation Instructions
 
 ### Option 1: Download from Official Website (Recommended)
 
 1. Visit https://godotengine.org/download/windows
-2. Download Godot Engine 4.2+ (matches the version in `project.godot`)
+2. Download Godot Engine 4.7+ (matches the version in `project.godot`)
 3. Extract the archive
 4. Add the Godot executable to your PATH, or run it directly
 
@@ -35,7 +56,7 @@ Clone the Godot repository and build:
 ```bash
 git clone https://github.com/godotengine/godot.git
 cd godot
-git checkout 4.2-stable
+git checkout 4.7-stable
 scons
 ```
 
@@ -82,6 +103,6 @@ After opening the project in Godot:
 If you get an error about `icon.svg`, you can disable it in the project settings or provide an SVG icon file.
 
 **Version Mismatch:**
-Make sure you're using Godot 4.2 or newer. If you have a different version, you may need to update the `config/features` in `project.godot`.
+Make sure you're using Godot 4.7 or newer. If you have a different version, you may need to update the `config/features` in `project.godot`.
 
 For more help, visit the [Godot Community](https://godotengine.org/community/)
