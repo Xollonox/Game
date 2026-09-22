@@ -47,18 +47,18 @@ echo ""
 
 # Get latest stable version
 echo -e "${BLUE}Fetching latest Godot release...${NC}"
-LATEST_VERSION=$(curl -s https://api.github.com/repos/godotengine/godot-releases/releases/latest | grep '"tag_name"' | head -1 | cut -d'"' -f4 | sed 's/-stable//')
+LATEST_VERSION=$(curl -s https://api.github.com/repos/godotengine/godot-builds/releases/latest | grep '"tag_name"' | head -1 | cut -d'"' -f4 | sed 's/-stable//')
 
 if [ -z "$LATEST_VERSION" ]; then
-  echo -e "${RED}Failed to fetch latest version. Trying Godot 4.2.2...${NC}"
-  LATEST_VERSION="4.2.2"
+  echo -e "${RED}Failed to fetch latest version. Falling back to Godot 4.7.2...${NC}"
+  LATEST_VERSION="4.7.2"
 fi
 
 echo -e "${GREEN}Latest version: $LATEST_VERSION${NC}"
 echo ""
 
-# Build download URL
-DOWNLOAD_URL="https://github.com/godotengine/godot-releases/releases/download/${LATEST_VERSION}-stable/Godot_v${LATEST_VERSION}-stable_${PLATFORM}.zip"
+# Build download URL (official releases are published under godot-builds)
+DOWNLOAD_URL="https://github.com/godotengine/godot-builds/releases/download/${LATEST_VERSION}-stable/Godot_v${LATEST_VERSION}-stable_${PLATFORM}.zip"
 FILENAME="godot-${LATEST_VERSION}.zip"
 INSTALL_DIR="${HOME}/.godot"
 

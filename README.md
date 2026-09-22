@@ -1,6 +1,6 @@
 # Game
 
-A game project built with Godot Engine 4.3+ (Latest)
+A game project built with Godot Engine 4.7+ (Latest)
 
 ## Getting Started
 
@@ -23,7 +23,7 @@ See [INSTALLATION.md](INSTALLATION.md) for detailed installation instructions.
 
 ### Running the Game
 
-1. Open this project in Godot (Godot 4.3+)
+1. Open this project in Godot (Godot 4.7+)
 2. Click the Play button (▶) to run the game
 
 ## Project Structure
