@@ -11,6 +11,7 @@ const MAX_LOG_LINES := 6
 @onready var camera: Camera3D = $Camera3D
 @onready var state_label: Label = $HUD/StateLabel
 @onready var log_label: Label = $HUD/LogLabel
+@onready var touch_controls: TouchControls = $TouchControls
 
 var _cam_yaw := 0.0
 var _log: Array[String] = []
@@ -19,9 +20,12 @@ var _log: Array[String] = []
 func _ready() -> void:
 	if player:
 		player.camera = camera
+		player.touch_controls = touch_controls
 		if player.has_signal("landed_hit"):
 			player.landed_hit.connect(_on_landed_hit)
-	_log_line("WASD move · SPACE swing · 1/2/3 hit self · mouse drag orbit")
+	if touch_controls:
+		touch_controls.camera_dragged.connect(_on_camera_dragged)
+	_log_line("WASD/joystick move · SPACE/button swing · 1/2/3 hit self · drag orbit")
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -59,6 +63,10 @@ func _physics_process(delta: float) -> void:
 
 	if state_label:
 		state_label.text = "State: %s" % player.get_state_name()
+
+
+func _on_camera_dragged(delta: Vector2) -> void:
+	_cam_yaw -= delta.x * 0.006
 
 
 func _on_landed_hit(target_name: String, profile_name: String) -> void:

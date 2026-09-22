@@ -17,10 +17,13 @@ playable at:
 
 | Input | Action |
 |---|---|
-| `W` `A` `S` `D` | Walk (camera-relative) |
-| `Space` / left click | Sword swing — knocks down a dummy in front of you |
+| `W` `A` `S` `D`, or the on-screen joystick | Walk (camera-relative) |
+| `Space` / left click, or the on-screen SWING button | Sword swing — knocks down a dummy in front of you |
 | `1` / `2` / `3` | Hit yourself: light / heavy (stagger) / crushing (ragdoll) |
-| Right-drag, or `Q` / `E` | Orbit the camera |
+| Right-drag, `Q` / `E`, or a touch drag on the right side of the screen | Orbit the camera |
+
+On a touchscreen, a virtual joystick (bottom-left) and swing button (bottom-right)
+appear automatically — see `scripts/touch_controls.gd`.
 
 ## Running from source
 

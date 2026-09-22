@@ -11,12 +11,15 @@ const ATTACK_CONTACT_DELAY := 0.28
 signal landed_hit(target_name: String, profile_name: String)
 
 var camera: Camera3D
+var touch_controls: TouchControls
 
 var _pending_contact := -1.0
 
 
 func _physics_process(delta: float) -> void:
 	var input_2d := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	if touch_controls:
+		input_2d = (input_2d + touch_controls.get_move_vector()).limit_length(1.0)
 	move_dir = _camera_relative(input_2d)
 	super._physics_process(delta)
 
