@@ -11,6 +11,11 @@ var touch_controls: TouchControls
 
 
 func _physics_process(delta: float) -> void:
+	if is_dead():
+		# Dead player: the rig owns the body; no input until the arena restarts.
+		move_dir = Vector3.ZERO
+		return
+
 	var input_2d := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	if touch_controls:
 		input_2d = (input_2d + touch_controls.get_move_vector()).limit_length(1.0)

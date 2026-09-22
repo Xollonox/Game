@@ -8,6 +8,7 @@ extends Node3D
 ## the stagger/ragdoll/recovery signal handling.
 
 signal landed_hit(target_name: String, profile_name: String)
+signal died(actor: KickbackActor)
 
 const IDLE_ANIM := "Sword_Idle"
 const WALK_ANIM := "Walk"
@@ -22,6 +23,16 @@ const SWORD_SCENE := preload("res://scenes/sword.tscn")
 @export var tuning_preset := "stand"
 ## Spawns a physics sword and grip-follows it to this actor's Hand_R bone.
 @export var carries_sword := true
+
+## PLAN.md Phase 6: a readout-grade health model. Damage is keyed off the
+## impact profile that actually fired, so what drains the bar is the same tier
+## the rig visibly reacted with.
+@export var max_health := 100.0
+const PROFILE_DAMAGE := {&"Light Swing": 8.0, &"Heavy Swing": 20.0, &"Crushing Blow": 40.0}
+
+var health := 100.0
+
+var _dead := false
 
 var kickback_character: KickbackCharacter
 var anim: AnimationPlayer
@@ -39,6 +50,7 @@ var _downed := false
 
 
 func _ready() -> void:
+	health = max_health
 	skeleton = KickbackSetup.find_skeleton(model)
 	if not skeleton:
 		push_error("%s: no Skeleton3D found under Model" % name)
@@ -156,13 +168,39 @@ func is_downed() -> bool:
 
 ## Routes a hit into the rig at [param rig_name] ("Chest", "Head", "Hand_R"...).
 func receive_hit_at(rig_name: String, hit_dir: Vector3, profile: ImpactProfile) -> void:
-	if not kickback_character or not _rig_builder:
+	if _dead or not kickback_character or not _rig_builder:
 		return
 	var bodies: Dictionary = _rig_builder.get_bodies()
 	var body: RigidBody3D = bodies.get(rig_name)
 	if not body:
 		return
 	kickback_character.receive_hit(body, hit_dir, body.global_position, profile)
+	_apply_hit_damage(profile)
+
+
+func is_dead() -> bool:
+	return _dead
+
+
+## Phase 6 health: subtract the tier that fired; at zero the fighter stays down.
+func _apply_hit_damage(profile: ImpactProfile) -> void:
+	health = maxf(0.0, health - float(PROFILE_DAMAGE.get(profile.profile_name, 8.0)))
+	if health <= 0.0:
+		_die()
+
+
+## Death reads through the rig, not a canned death animation: a guaranteed
+## ragdoll dropped into persistent (limp) mode, so the body collapses and never
+## stands back up.
+func _die() -> void:
+	_dead = true
+	_downed = true
+	if anim:
+		anim.pause()
+	if kickback_character:
+		kickback_character.set_persistent(true)
+		kickback_character.trigger_ragdoll()
+	died.emit(self)
 
 
 func get_state_name() -> String:
@@ -202,6 +240,11 @@ func _on_recovery_started(_face_up: bool) -> void:
 
 
 func _on_recovery_finished() -> void:
+	if _dead:
+		# Persistent mode holds the ragdoll; never let a finished recovery
+		# stand a corpse back up.
+		_downed = true
+		return
 	_downed = false
 	if anim:
 		anim.play(IDLE_ANIM, 0.3)

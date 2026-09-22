@@ -30,6 +30,9 @@ const SPRING_WEIGHT := 0.4
 const STUCK_STIFFNESS_SCALE := 0.12
 const STUCK_DURATION := 0.35
 const HIT_COOLDOWN := 0.4
+## Relative tip speed (m/s) at which blade-on-blade contact rings as a clash.
+const CLASH_SPEED := 3.0
+const CLASH_COOLDOWN := 0.3
 ## Below this tip speed (m/s) a touch doesn't even count as a graze.
 const MIN_HIT_SPEED := 1.2
 ## Tip speed at/above which a hit "sticks" the blade instead of bouncing off.
@@ -58,6 +61,7 @@ var grip_body: RigidBody3D
 var _stuck_timer := 0.0
 var _hit_cooldown := 0.0
 var _swish_cooldown := 0.0
+var _clash_cooldown := 0.0
 var _trail: SwordTrail
 
 
@@ -90,6 +94,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	_stuck_timer = maxf(0.0, _stuck_timer - delta)
 	_hit_cooldown = maxf(0.0, _hit_cooldown - delta)
 	_swish_cooldown = maxf(0.0, _swish_cooldown - delta)
+	_clash_cooldown = maxf(0.0, _clash_cooldown - delta)
 
 	# Check hits with the velocity that produced this step's contacts, before
 	# it gets overwritten below by this tick's spring command.
@@ -159,7 +164,12 @@ func _check_hits(state: PhysicsDirectBodyState3D) -> void:
 
 	for i in range(state.get_contact_count()):
 		var body := state.get_contact_collider_object(i)
-		if not body is RigidBody3D or not body.has_meta(&"kickback_actor"):
+		if not body is RigidBody3D:
+			continue
+		if body is PhysicsSword:
+			_check_clash(state, i, body, tip_vel)
+			continue
+		if not body.has_meta(&"kickback_actor"):
 			continue
 		var target_actor: KickbackActor = body.get_meta(&"kickback_actor")
 		if not target_actor or target_actor == wielder:
@@ -179,3 +189,16 @@ func _check_hits(state: PhysicsDirectBodyState3D) -> void:
 		if speed >= STICK_SPEED:
 			_stuck_timer = STUCK_DURATION
 		return
+
+
+## Blade-on-blade contact. Both blades see the same contact on the same step,
+## so only the lower instance id rings it (no doubled clang), and only above a
+## real relative tip speed — two resting blades brushing past doesn't count.
+func _check_clash(state: PhysicsDirectBodyState3D, i: int, other: PhysicsSword, tip_vel: Vector3) -> void:
+	if _clash_cooldown > 0.0 or get_instance_id() > other.get_instance_id():
+		return
+	var rel := (tip_vel - other.get_tip_velocity()).length()
+	if rel < CLASH_SPEED:
+		return
+	_clash_cooldown = CLASH_COOLDOWN
+	CombatFX.play_clash(state.get_contact_collider_position(i), clampf(rel / 15.0, 0.0, 1.0))

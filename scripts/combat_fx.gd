@@ -134,6 +134,21 @@ func play_hit(pos: Vector3, severity: float) -> void:
 	pl.play()
 
 
+## Weapon-on-weapon clash (PLAN.md Phase 5, "clash on weapon-weapon contact"):
+## the impact set brightened and softened — at this asset fidelity the punch
+## set pitched past 1.5x reads as metal-on-metal, and it keeps the asset ledger
+## unchanged.
+func play_clash(pos: Vector3, intensity: float) -> void:
+	if _hit_streams.is_empty():
+		return
+	var pl := _take_player()
+	pl.stream = _hit_streams[_rng.randi() % _hit_streams.size()]
+	pl.global_position = pos
+	pl.pitch_scale = lerpf(1.55, 1.9, clampf(intensity, 0.0, 1.0)) * _rng.randf_range(0.95, 1.05)
+	pl.volume_db = lerpf(-12.0, -4.0, clampf(intensity, 0.0, 1.0))
+	pl.play()
+
+
 ## Drops Engine.time_scale for [param duration] real seconds. Re-entrant: a
 ## bigger hit landing mid-stop extends it rather than cutting it short.
 func hitstop(duration: float, scale: float) -> void:

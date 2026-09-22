@@ -60,8 +60,9 @@ func _tick_ai(delta: float) -> void:
 	_timer = maxf(0.0, _timer - delta)
 
 	# While down or getting up the rig owns the body; queuing intent through
-	# that would make it lurch the instant it stands.
-	if is_downed() or not target or target.is_downed():
+	# that would make it lurch the instant it stands. A dead fighter (its own,
+	# or its target's) ends the engagement entirely.
+	if is_dead() or is_downed() or not target or target.is_dead() or target.is_downed():
 		move_dir = Vector3.ZERO
 		_state = State.IDLE
 		return

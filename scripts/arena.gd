@@ -13,6 +13,11 @@ const MAX_LOG_LINES := 6
 @onready var log_label: Label = $HUD/LogLabel
 @onready var touch_controls: TouchControls = $TouchControls
 
+## Phase 6 UI: per-fighter health readout and the death overlay, built in code
+## so the arena scene stays a greybox.
+var health_label: Label
+var death_overlay: Label
+
 ## Peak positional shake in metres at severity 1.0. Small on purpose — camera
 ## shake that reads as "impact" rather than "earthquake" is a few centimetres.
 const SHAKE_AMPLITUDE := 0.22
@@ -31,6 +36,7 @@ func _ready() -> void:
 		player.touch_controls = touch_controls
 		if player.has_signal("landed_hit"):
 			player.landed_hit.connect(_on_landed_hit)
+		player.died.connect(_on_actor_died)
 	if touch_controls:
 		touch_controls.camera_dragged.connect(_on_camera_dragged)
 	CombatFX.shake_requested.connect(_on_shake_requested)
@@ -39,6 +45,8 @@ func _ready() -> void:
 		if node is Enemy:
 			node.target = player
 			node.landed_hit.connect(_on_enemy_landed_hit)
+			node.died.connect(_on_actor_died)
+	_build_hud()
 	_log_line("WASD/joystick move · SPACE/button swing · 1/2/3 hit self · drag orbit")
 
 
@@ -57,6 +65,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				_cam_yaw += 0.25
 			KEY_E:
 				_cam_yaw -= 0.25
+			KEY_R:
+				if player and player.is_dead():
+					get_tree().reload_current_scene()
 
 
 func _hit_player(profile: ImpactProfile, severity: float) -> void:
@@ -91,6 +102,8 @@ func _physics_process(delta: float) -> void:
 
 	if state_label:
 		state_label.text = "State: %s" % player.get_state_name()
+	if health_label:
+		health_label.text = _health_text()
 
 
 func _on_camera_dragged(delta: Vector2) -> void:
@@ -111,3 +124,40 @@ func _log_line(text: String) -> void:
 		_log.pop_front()
 	if log_label:
 		log_label.text = "\n".join(_log)
+
+
+## Phase 6 basic UI: one line of per-fighter health plus a death overlay with
+## the restart hint. Built in code — nothing here needs scene authoring.
+func _build_hud() -> void:
+	var hud: CanvasLayer = $HUD
+	health_label = Label.new()
+	health_label.position = Vector2(16, 42)
+	health_label.add_theme_font_size_override("font_size", 20)
+	hud.add_child(health_label)
+
+	death_overlay = Label.new()
+	death_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	death_overlay.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	death_overlay.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	death_overlay.add_theme_font_size_override("font_size", 44)
+	death_overlay.add_theme_color_override("font_color", Color(0.92, 0.18, 0.12))
+	death_overlay.text = "YOU DIED\nPress R to restart"
+	death_overlay.visible = false
+	hud.add_child(death_overlay)
+
+
+func _health_text() -> String:
+	if player.is_dead():
+		return ""
+	var parts: Array[String] = ["You %d" % roundi(player.health)]
+	for node in get_tree().get_nodes_in_group("hittable"):
+		if node is Enemy and not node.is_dead():
+			parts.append("%s %d" % [node.name, roundi(node.health)])
+	return "   ".join(parts)
+
+
+func _on_actor_died(actor: KickbackActor) -> void:
+	if actor == player:
+		death_overlay.visible = true
+	else:
+		_log_line("%s is down" % actor.name)
