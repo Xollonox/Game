@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/leather_nor.jpg-62f4ea8cb9c10795b39d0adbca94a
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

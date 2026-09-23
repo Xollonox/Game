@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/iron_diff.jpg-5012e321ca7d6fe58e6b39ffd9f58bd
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

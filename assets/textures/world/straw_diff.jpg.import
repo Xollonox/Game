@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/straw_diff.jpg-1b0fecb0cb9fe0478764da53722650
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

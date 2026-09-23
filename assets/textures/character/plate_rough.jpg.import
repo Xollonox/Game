@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/plate_rough.jpg-d184c623e348a328b5a722a0433e7
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

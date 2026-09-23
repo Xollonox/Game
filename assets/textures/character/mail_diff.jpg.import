@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/mail_diff.jpg-7bda282f262595d1252eb0c77f8e1fc
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/linen_rough.jpg-a877cc969181cf47e9643854a02f3
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

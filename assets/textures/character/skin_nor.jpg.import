@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/skin_nor.jpg-f7df152a87c615e43eb889d23eb10188
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

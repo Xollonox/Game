@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/plate_nor.jpg-9d2fd454c6b0fb6f9159d36cd2ffc22
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

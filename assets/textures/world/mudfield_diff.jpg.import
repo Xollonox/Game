@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/mudfield_diff.jpg-a6c09cece6634f972973c6bf0e7
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/mail_nor.jpg-87342e6fd3dc150109dcb67eb95b0102
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

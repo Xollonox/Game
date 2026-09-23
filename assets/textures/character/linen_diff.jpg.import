@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/linen_diff.jpg-e35d1fc4a72fdf482985458a859fc9
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

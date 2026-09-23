@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/lists_nor.jpg-83f04fd3a0ed527873824af25bec727
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

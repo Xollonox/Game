@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/eye_diff.jpg-18b9b623f625eb7d6395f2c80bbc6f4a
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

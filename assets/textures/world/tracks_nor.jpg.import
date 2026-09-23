@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/tracks_nor.jpg-638114d4a5b7ce1e51fa9fea072e61
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

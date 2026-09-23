@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/wool_nor.jpg-f416eb7d0e2cb1370959fb887b6c835c
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

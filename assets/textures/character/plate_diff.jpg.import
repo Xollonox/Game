@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/plate_diff.jpg-f027fbf32593f8ee1ceec21e1a9b9f
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

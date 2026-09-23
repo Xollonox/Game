@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/tracks_diff.jpg-14ddce34e37323b7bfa032ac3e0eb
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/mail_metal.jpg-60ab77f64afd8ad79eed7369d9dd54
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
