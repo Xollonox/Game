@@ -183,6 +183,7 @@ func _spawn_weapons() -> void:
 		shield = PhysicsWeapon.create("heater_shield")
 		get_parent().add_child(shield)
 		shield.attach_to(self, "L")
+		shield.apply_heraldry(Heraldry.texture_for(String(spec.get("name", name))))
 		if weapon:
 			weapon.ignore_weapon(shield)
 

@@ -129,6 +129,24 @@ func attach_to(actor: KickbackActor, side: String = "R") -> void:
 		global_transform = grip_body.global_transform * grip_offset
 
 
+## Paints the bearer's arms onto the shield board (W_Paint surfaces).
+func apply_heraldry(tex: Texture2D) -> void:
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.roughness = 0.8
+	var nor := "res://assets/textures/world/wood_nor.jpg"
+	if ResourceLoader.exists(nor):
+		m.normal_enabled = true
+		m.normal_texture = load(nor)
+		m.normal_scale = 0.5
+	for node in find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		for i in mi.mesh.get_surface_count():
+			var src := mi.mesh.surface_get_material(i)
+			if src and src.resource_name.begins_with("W_Paint"):
+				mi.set_surface_override_material(i, m)
+
+
 func ignore_weapon(other: PhysicsWeapon) -> void:
 	add_collision_exception_with(other)
 

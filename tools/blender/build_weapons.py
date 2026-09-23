@@ -250,6 +250,9 @@ def join(objs, name):
     return ob
 
 
+SHIELD_UV = [None]
+
+
 def uv_project(ob, texel=4.0):
     """Cylindrical-ish projection: U around the long axis, V along it.
     Blades get a flat planar map (both sides mirror), which is what steel
@@ -262,6 +265,10 @@ def uv_project(ob, texel=4.0):
         n = poly.normal
         for li in poly.loop_indices:
             co = me.vertices[me.loops[li].vertex_index].co
+            if SHIELD_UV[0] is not None and me.materials[poly.material_index].name == "W_Paint":
+                w, top, h = SHIELD_UV[0]
+                uvl[li].uv = ((co.z + w / 2) / w, (top - co.y) / h)
+                continue
             if abs(n.y) > 0.8:
                 u, v = co.x, co.z
             elif abs(n.x) > abs(n.z):
@@ -623,6 +630,7 @@ def heater_shield():
     for o in (boss,):
         bpy.data.objects.remove(o, do_unlink=True)
     parts = [(board, WOOD_DENSITY), (strap, LEATHER_DENSITY), (grip, LEATHER_DENSITY)]
+    SHIELD_UV[0] = (w, h * 0.62, h)
     boxes = [(Vector((-0.06, 0.1, 0)), Vector((0.05, h * 0.9, w * 0.95)), "shield")]
     finish("heater_shield", parts, {
         "name": "Heater Shield", "class": "shield", "hands": 1, "damage": "blunt",
