@@ -77,6 +77,7 @@ func _tick_ai(delta: float) -> void:
 			set_guard(false)
 		return
 	weapons_live = _engage_delay <= 0.0
+	relaxed = _engage_delay > 0.0 and not spec.get("shade", false)
 	if _engage_delay > 0.0:
 		_engage_delay -= delta
 		move_dir = Vector3.ZERO

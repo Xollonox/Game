@@ -69,6 +69,8 @@ var weapons_live := true
 ## Out of the fight on his knees, weapon dropped. Still alive — striking him
 ## now kills him, and a kill is a debt the Hollow collects.
 var yielded := false
+## Not yet in the fight (waiting at the gate): relaxed stance and gait.
+var relaxed := false
 var last_attacker: KickbackActor
 
 var _dead := false
@@ -291,6 +293,14 @@ func _update_locomotion_anim(moving: bool) -> void:
 		return
 	var want := _stance_anim
 	var spd := 1.0
+	if relaxed and not _guarding:
+		want = "Idle" if not moving else "Walk"
+		if moving:
+			spd = move_speed / WALK_SPEED
+		if anim.current_animation != want:
+			anim.play(want, 0.35)
+		anim.speed_scale = spd
+		return
 	if _guarding:
 		want = _guard_anim
 	elif moving:
