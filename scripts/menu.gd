@@ -29,10 +29,12 @@ func _process(delta: float) -> void:
 	_time += delta
 	# A slow arc across the yard toward the gatehouse, with a breath of
 	# handheld bob so the shot never reads as a locked-off render.
-	var a := -0.72 + sin(_time * 0.045) * 0.34
-	var r := 15.8 + sin(_time * 0.09) * 0.5
-	_camera.position = Vector3(sin(a) * r, 3.1 + sin(_time * 0.31) * 0.06, -cos(a) * r)
-	_camera.look_at(Vector3(0.0, 2.3, -9.0))
+	# Inside the yard, drifting along the lists past two men sparring, the
+	# gatehouse behind them.
+	var a := 2.6 + sin(_time * 0.05) * 0.28
+	var r := 7.4 + sin(_time * 0.09) * 0.4
+	_camera.position = Vector3(sin(a) * r, 2.0 + sin(_time * 0.31) * 0.05, -cos(a) * r)
+	_camera.look_at(Vector3(-2.2, 1.3, -1.8))
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -81,10 +83,33 @@ func _build_world() -> void:
 	_world.set_script(load("res://scripts/world_builder.gd"))
 	add_child(_world)
 
+	_spawn_sparring()
+
 	_camera = Camera3D.new()
 	_camera.fov = 52.0
 	_camera.position = Vector3(-10.0, 3.1, 13.0)
 	add_child(_camera)
+
+
+## Two fighters sparring in the ring behind the title — the menu shows the
+## game, not a picture of it.
+func _spawn_sparring() -> void:
+	var ground := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	cs.shape = WorldBoundaryShape3D.new()
+	ground.add_child(cs)
+	add_child(ground)
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var scene := load("res://scenes/dummy.tscn")
+	for i in 2:
+		var f: Enemy = scene.instantiate()
+		f.spec = Armory.roll_fighter(3 + i, rng)
+		f.spec["ai"]["aggression"] = 0.6
+		f.team = 10 + i
+		f.position = Vector3(1.4 + (i * 2 - 1) * 1.5, 0, -2.4)
+		f.set_engage_delay(1.5 + i)
+		add_child(f)
 
 
 # ------------------------------------------------------------------- ui -----
@@ -142,8 +167,10 @@ func _build_ui() -> void:
 		var st := Label.new()
 		st.text = ("In the Hollow" if in_hollow else "Bout %d of %d · %s" % [int(run.get("bout", 0)) + 1,
 			Tournament.bout_count(), Tournament.standing(int(run.get("bout", 0)))]) + " · %d renown" % int(run.get("renown", 0))
-		st.add_theme_font_size_override("font_size", 15)
-		st.add_theme_color_override("font_color", UITheme.INK_FAINT)
+		st.add_theme_font_size_override("font_size", 16)
+		st.add_theme_color_override("font_color", UITheme.INK_DIM)
+		st.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+		st.add_theme_constant_override("outline_size", 4)
 		column.add_child(st)
 		column.add_child(_spacer(10.0))
 		var fresh := _button("Begin a New Life", false)

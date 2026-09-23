@@ -597,14 +597,14 @@ static func describe_kit(spec: Dictionary) -> String:
 func show_intro(enc: Dictionary, run: Dictionary, specs: Array) -> void:
 	_clear_overlay()
 	_set_fight_hud_visible(false)
-	_overlay.add_child(_gradient_band(true, 0.62))
+	_overlay.add_child(_gradient_band(true, 0.45))
 	var box := VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	box.anchor_right = 1.0
 	box.offset_left = 72.0
 	box.offset_right = -72.0
-	box.offset_top = -330.0
-	box.offset_bottom = -40.0
+	box.offset_top = -260.0
+	box.offset_bottom = -28.0
 	box.add_theme_constant_override("separation", 6)
 	box.alignment = BoxContainer.ALIGNMENT_END
 	_overlay.add_child(box)
@@ -612,8 +612,8 @@ func show_intro(enc: Dictionary, run: Dictionary, specs: Array) -> void:
 	var header: String = enc.get("header", "BOUT %d OF %d  ·  %s  ·  RENOWN %d" % [bout + 1, Tournament.bout_count(),
 		Tournament.standing(bout).to_upper(), int(run.get("renown", 0))])
 	box.add_child(_label(header, UITheme.display(600), 14, UITheme.BRASS))
-	box.add_child(_label(String(enc.get("title", "")), UITheme.decorative(), 46, UITheme.INK))
-	box.add_child(_label(String(enc.get("blurb", "")), UITheme.body(400), 20, UITheme.INK_DIM))
+	box.add_child(_label(String(enc.get("title", "")), UITheme.decorative(), 40, UITheme.INK))
+	box.add_child(_label(String(enc.get("blurb", "")), UITheme.body(400), 19, UITheme.INK_DIM))
 	box.add_child(_label(Tournament.format_label(enc.get("format", "duel"), specs.size()).to_upper(),
 		UITheme.display(600), 13, UITheme.BLOOD_BRIGHT))
 	box.add_child(UITheme.rule(420.0))
@@ -630,7 +630,7 @@ func show_intro(enc: Dictionary, run: Dictionary, specs: Array) -> void:
 			UITheme.body(), 17, UITheme.INK_DIM)
 		kl.autowrap_mode = TextServer.AUTOWRAP_OFF
 		grid.add_child(kl)
-	_intro_hint = _label("Strike to begin", UITheme.display(600), 15, UITheme.INK_FAINT)
+	_intro_hint = _label("Strike to begin", UITheme.display(600), 17, UITheme.INK)
 	box.add_child(_intro_hint)
 	var t := _intro_hint.create_tween().set_loops()
 	t.tween_property(_intro_hint, "modulate:a", 0.35, 0.9)
