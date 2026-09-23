@@ -15,6 +15,10 @@ var touch_controls: TouchControls
 var lock_target: KickbackActor
 var lock_enabled := true
 var _yield_hold := 0.0
+## A loose weapon within reach and in front of us, offered by the prompt.
+var pickup_candidate: PhysicsWeapon
+## The prompt text the HUD shows ("" = none).
+var interact_prompt := ""
 
 
 func _physics_process(delta: float) -> void:
@@ -40,8 +44,16 @@ func _physics_process(delta: float) -> void:
 		attack("heavy" if sprinting else "cut", {"dir": _line_from_input(input_2d)})
 	elif Input.is_action_just_pressed("thrust"):
 		attack("thrust", {"dir": "thrust"})
+	elif Input.is_action_just_pressed("kick"):
+		# Kick: forward/none = push kick to the body, back/side = low kick.
+		attack("kick", {"dir": "thrust" if input_2d.y <= 0.3 and absf(input_2d.x) < 0.5 else "low"})
 	elif Input.is_key_pressed(KEY_X) and not is_swinging():
 		evade()
+	_update_pickup_prompt()
+	if Input.is_action_just_pressed("interact") and pickup_candidate:
+		if is_instance_valid(weapon):
+			drop_weapon(-global_basis.z * 0.5)  # lay down what we hold to take the other
+		pick_up(pickup_candidate)
 	# Hold G to yield — only when badly hurt, and it costs the bout.
 	if Input.is_key_pressed(KEY_G) and health < max_health * 0.5 and not yielded:
 		_yield_hold += delta
@@ -49,6 +61,24 @@ func _physics_process(delta: float) -> void:
 			yield_fight()
 	else:
 		_yield_hold = 0.0
+
+
+## Offers the nearest loose weapon we are facing, within a step and a reach.
+func _update_pickup_prompt() -> void:
+	pickup_candidate = null
+	interact_prompt = ""
+	if _downed or is_swinging() or _pickup_target:
+		return
+	var w := nearest_loose_weapon(1.7)
+	if not w:
+		return
+	var to := w.global_position - global_position
+	to.y = 0.0
+	if to.length() > 0.4 and to.normalized().dot(global_basis.z) < 0.2:
+		return  # behind us
+	pickup_candidate = w
+	var verb := "Take up" if not is_instance_valid(weapon) else "Swap for"
+	interact_prompt = "E  ·  %s the %s" % [verb, WeaponCatalog.display_name(w.weapon_id).to_lower()]
 
 
 func _line_from_input(input_2d: Vector2) -> String:

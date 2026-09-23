@@ -11,6 +11,7 @@ var arena
 var t := 0.0
 var attack_cd := 0.0
 var retreat := 0.0
+var retreat_delay := 0.0
 var hits := 0
 var kills := 0
 var limit := 40.0
@@ -51,6 +52,10 @@ func _physics_process(delta: float) -> void:
 	t += delta
 	attack_cd -= delta
 	retreat -= delta
+	if retreat_delay > 0.0:
+		retreat_delay -= delta
+		if retreat_delay <= 0.0:
+			retreat = 0.4
 	if not _started:
 		if t > 2.5:
 			await _snap("intro")
@@ -105,8 +110,10 @@ func _physics_process(delta: float) -> void:
 		Input.action_press(act)
 		await get_tree().process_frame
 		Input.action_release(act)
-		attack_cd = 1.0
-		retreat = 0.4
+		attack_cd = 1.2
+		# Back off only after the follow-through: the blade is live 0.4-0.6 s
+		# into the swing, and retreating earlier drags it out of range.
+		retreat_delay = 0.75
 
 
 func _snap(label: String) -> void:

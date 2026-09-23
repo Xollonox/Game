@@ -269,6 +269,7 @@ func _physics_process(delta: float) -> void:
 
 func _update_hud() -> void:
 	hud.set_vitals(player.health, player.max_health)
+	hud.set_prompt(String(player.get("interact_prompt")) if phase == Phase.FIGHT else "")
 	var entries: Array = []
 	for e in _enemies:
 		entries.append({"name": String(e.spec.get("name", e.name)), "health": e.health, "max": e.max_health,

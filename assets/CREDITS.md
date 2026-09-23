@@ -86,3 +86,24 @@ All under the SIL Open Font License 1.1 (OFL), which permits bundling and modifi
 itch.io "name your own price" pages need an interactive claim flow, so they cannot be fetched headlessly:
 
 - [Human Melee Animations](https://kevdev.itch.io/human-melee-animations) by kevdev — supplemental sword set; the Quaternius library already covers the needs of the current build.
+
+## Code — third-party
+
+| Component | Source | License | Use / modification |
+|---|---|---|---|
+| Kickback 0.4.0 (active ragdoll addon) | https://github.com/blugart-dev/kickback (`main`, 1d2c5ae) | MIT © blugart-dev (`addons/kickback/LICENSE`) | Vendored in `addons/kickback`. Bare Steel changes are marked "Bare Steel" in the source: capture-point balance (`_compute_balance_state` → BalanceState, ray-tested grounded feet, held-weapon mass), `request_balance_step` / `next_stumble_drift` / re-stepping balance stumbles, smoothstep get-up strength ramp, `SpringResolver.impairment` wound caps. |
+| `BalanceState` | https://github.com/blugart-dev/kickback (branch `feat/balance-behaviors`, `addons/kickback/balance_state.gd`) | MIT © blugart-dev | Vendored unchanged apart from its header and a dropped `@icon`. |
+
+Studied for design only (no code copied; all MIT): monxa/GodotIK (FABRIK
+multi-chain IK — GDExtension, not usable on the Web build),
+Llocus/RigController, TjhaiME/Godot-Active-Rigid-Ragdoll,
+CBerry22/Active-Ragdoll---Physics-Animations-in-Godot-4.0,
+V-Sekai/godot-active-ragdoll-physics-animations,
+antzGames/Godot-Compatibility-Decal-Node (candidate for pooled blood decals),
+expressobits/inventory-system (GDExtension), xxdbali/godot-pickup-system.
+
+## Animations — original
+
+`PickUp_Low`, `Equip_Head`, `Equip_Body`, `Kick_Front`, `Kick_Low` are
+authored in `tools/blender/melee_anims.py` on the fighter's IK rig (no
+third-party motion data).

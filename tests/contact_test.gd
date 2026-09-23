@@ -135,6 +135,23 @@ func _clear() -> void:
 	await _wait(0.2)
 
 
+## Walks [param a] to [param want] m from [param b] (facing him) and waits for
+## a steady stance, as a fighter sets up a strike. Recovery steps drift the
+## fighters apart between blows; this keeps each strike at a fair range.
+func _set_range(a: KickbackActor, b: KickbackActor, want: float) -> void:
+	for i in 180:
+		var to := b.global_position - a.global_position
+		to.y = 0.0
+		a.face_dir = to.normalized()
+		var err := to.length() - want
+		a.move_dir = to.normalized() * clampf(err * 2.0, -0.6, 0.6) if absf(err) > 0.05 else Vector3.ZERO
+		await get_tree().physics_frame
+		if absf(err) <= 0.05 and a.get_state_name() == "NORMAL" and not a.is_swinging():
+			break
+	a.move_dir = Vector3.ZERO
+	await get_tree().create_timer(0.25).timeout
+
+
 func _damage(a: KickbackActor) -> float:
 	return a.max_health - a.health
 
@@ -191,13 +208,37 @@ func _live_tests() -> void:
 	var kinds: Array[String] = []
 	vic.wounded.connect(func(_x, info): kinds.append(String(info["kind"])))
 	await _wait(1.0)
+	var peak_strain := 0.0
 	for i in 10:
+		await _set_range(att, vic, 1.3)
 		att.attack("cut")
-		await _wait(1.3)
+		for f in 78:
+			await get_tree().physics_frame
+			if is_instance_valid(att.weapon):
+				peak_strain = maxf(peak_strain, att.weapon.grip_strain)
 		if "cut" in kinds:
 			break
+	_check(is_instance_valid(att.weapon), "swinging through a man does not disarm the swordsman (peak strain %.2f)" % peak_strain)
 	_check(_damage(vic) > 0.0 and "cut" in kinds, "a real swing cuts (%s, %.1f dmg)" % [kinds, _damage(vic)])
 	await _clear()
+
+	# 5b. Bare hands: punches and kicks land as blunt blows, from the same
+	# evaluator.
+	for kind in ["cut", "kick"]:
+		var boxer := _fighter(Vector3(0, 0, -0.72 if kind == "cut" else -0.8), Vector3(0, 0, 1), ["G_Tunic", "G_Hose"], "")
+		var bag := _fighter(Vector3(0, 0, 0.1), Vector3(0, 0, -1), ["G_Shirt", "G_Hose"], "")
+		var landed: Array[String] = []
+		bag.wounded.connect(func(_x, info): landed.append(String(info["kind"])))
+		await _wait(1.0)
+		for i in 10:
+			await _set_range(boxer, bag, 0.7 if kind == "cut" else 0.85)
+			boxer.attack(kind, {"dir": "thrust"})
+			await _wait(1.3)
+			if not landed.is_empty():
+				break
+		_check("blunt" in landed, "%s lands as a blunt blow (%s, %.1f dmg)" % ["a punch" if kind == "cut" else "a kick",
+			landed, _damage(bag)])
+		await _clear()
 
 	# 6. Armour: the same qualified cut on plate vs on a bare arm.
 	var bare := _fighter(Vector3(-2, 0, 0), Vector3(0, 0, 1), ["G_Shirt", "G_Hose"], "")

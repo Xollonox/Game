@@ -340,12 +340,39 @@ def finish(wid, parts, meta, boxes, target_mass):
         "boxes": [{"center": g(c), "size": [round(s[0], 4), round(s[2], 4), round(s[1], 4)],
                    "part": part} for c, s, part in boxes],
     })
+    meta["markers"] = markers(meta, boxes)
     meta["tip"] = g(meta["tip"])
     if "grip2" in meta:
         meta["grip2"] = g(meta["grip2"])
     if "pommel" in meta:
         meta["pommel"] = g(meta["pommel"])
     write_meta(wid, meta)
+
+
+def markers(meta, boxes):
+    """Named points (Godot coordinates) every system reads instead of
+    guessing: GripPrimary (the main hand, the weapon origin), GripSecondary,
+    Pommel, Guard, EdgeStart/EdgeEnd (the cutting run of the blade), Tip,
+    Head (a mace or club head, an axe bit) and Shaft (a haft's middle)."""
+    m = {"GripPrimary": [0.0, 0.0, 0.0], "Tip": g(meta["tip"])}
+    if "grip2" in meta:
+        m["GripSecondary"] = g(meta["grip2"])
+    if "pommel" in meta:
+        m["Pommel"] = g(meta["pommel"])
+    edge = [(c, s) for c, s, part in boxes if part in ("edge", "point")]
+    if edge:
+        lo = min(c.y - s.y * 0.5 for c, s in edge)
+        hi = max(c.y + s.y * 0.5 for c, s in edge)
+        m["EdgeStart"] = g(Vector((0, lo, 0)))
+        m["EdgeEnd"] = g(Vector((0, hi, 0)))
+    for c, s, part in boxes:
+        if part == "guard":
+            m["Guard"] = g(c)
+        elif part == "head" or (part == "edge" and meta.get("class") == "axe"):
+            m["Head"] = g(c)
+        elif part == "haft":
+            m["Shaft"] = g(c)
+    return m
 
 
 def blade_boxes(y0, y1, w, t, n=3, part="edge"):

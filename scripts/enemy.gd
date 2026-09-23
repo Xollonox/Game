@@ -47,12 +47,37 @@ func _ready() -> void:
 	_skill = float(ai.get("skill", 0.5))
 	_aggr = float(ai.get("aggression", 0.6))
 	_spacing = float(ai.get("spacing", 1.0))
-	var wdef := WeaponCatalog.get_def(spec.get("weapon", ""))
-	_reach = 0.75 + float(wdef.get("length", 0.9)) * 0.8
+	_update_reach()
+	weapon_dropped.connect(func(_a, _w): _update_reach())
+	weapon_taken.connect(func(_a, _w): _update_reach())
 	_strafe = 1.0 if randf() < 0.5 else -1.0
 	if _engage_delay <= 0.0:
 		_engage_delay = randf_range(0.4, 1.6)
 	wounded.connect(_on_wounded)
+
+
+func _retrieve_weapon() -> bool:
+	if _pickup_target:
+		return true  # pick_up steers the last step in
+	var threat_close := target and not target.is_dead() and target.global_position.distance_to(global_position) < 1.2
+	var w := nearest_loose_weapon(9.0)
+	if not w or threat_close:
+		return false
+	var to := _flat(w.global_position - global_position)
+	face_dir = to.normalized() if to.length() > 0.05 else face_dir
+	set_guard(false)
+	if to.length() > 0.9:
+		move_dir = to.normalized()
+		sprinting = to.length() > 3.0
+		return true
+	move_dir = Vector3.ZERO
+	pick_up(w)
+	return true
+
+
+func _update_reach() -> void:
+	var wdef := WeaponCatalog.get_def(spec.get("weapon", "")) if spec.get("weapon", "") != "" else {}
+	_reach = 0.75 + float(wdef.get("length", 0.25)) * 0.8
 
 
 ## Opening beat before this fighter joins (the director staggers entries).
@@ -96,6 +121,11 @@ func _tick_ai(delta: float) -> void:
 	if _think <= 0.0:
 		_think = 0.4
 		_choose_target()
+	# Disarmed: the same pickup a player uses — walk to the nearest loose
+	# weapon and take it up, unless an enemy is right on top of us.
+	if not is_instance_valid(weapon) and carries_weapon:
+		if _retrieve_weapon():
+			return
 	if target and target.yielded:
 		target = null
 		_grudge = null
@@ -158,7 +188,12 @@ func _tick_ai(delta: float) -> void:
 					_state = State.APPROACH
 		State.RECOVER:
 			var back := dist < ring * 0.9
-			move_dir = (-dir * 0.55 if back else Vector3.ZERO) + side * 0.35 + _separation()
+			if attack_phase() in ["prep", "accel", "active", "follow"]:
+				# Commit through the strike: backing off mid-swing drags the
+				# blade out of range before it lands.
+				move_dir = dir * 0.1 + _separation() * 0.5
+			else:
+				move_dir = (-dir * 0.55 if back else Vector3.ZERO) + side * 0.35 + _separation()
 			if _timer <= 0.0:
 				# A skilled, aggressive fighter keeps pressure with a follow-up.
 				if may_press and randf() < _aggr * _skill * 0.8 and dist < _reach + 0.6:
@@ -196,7 +231,13 @@ func _wants_to_yield() -> bool:
 
 
 func _choose_attack() -> String:
-	var fam: String = WeaponCatalog.get_def(spec.get("weapon", "")).get("attacks", "sword")
+	var fam: String = WeaponCatalog.get_def(spec.get("weapon", "")).get("attacks", "sword") \
+		if spec.get("weapon", "") != "" else "unarmed"
+	# Kicks: a bare-handed man kicks often; an armed one now and then, to
+	# break a guard or a bind (skilled fighters more than novices).
+	var close := target.global_position.distance_to(global_position) < 1.05
+	if close and randf() < (0.35 if fam == "unarmed" else 0.08 + _skill * 0.08):
+		return "kick"
 	var armoured := Armory.worn_weight(target.spec.get("garments", [])) > 14.0
 	var r := randf()
 	if fam == "spear":

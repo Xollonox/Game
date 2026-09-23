@@ -556,6 +556,24 @@ def unarmed_moves(rig):
     S = pose(STANCE, weapon=((0.14, 0.26, 1.35), (0.0, 0.2, 1.0), (0, 1, 0)),
              lhand=((-0.12, 0.3, 1.4), (0, 0.2, 1), (0, 1, 0)))
     acts.append(rig.author("Stance_Idle", [(0, S), (1.3, pose(S, pelvis=(0, 0, -0.07))), (2.6, S)]))
+    # Front kick (a push kick): chamber the right knee high, drive the sole
+    # straight out at belly height with the hips behind it and the torso
+    # leaning back to balance, re-chamber, set the foot down. Keys follow the
+    # [wind 0.22, strike 0.38, follow 0.56] layout AttackLibrary assumes.
+    chamber = pose(S, pelvis=(0.02, -0.04, -0.04), hips=(10, -6, 0), torso=(0, -10, 0),
+                   foot_r=(0.12, 0.22, 10, 0.42), foot_l=(-0.12, 0.05, -8))
+    extend = pose(S, pelvis=(0.02, 0.1, -0.02), hips=(8, -14, 0), torso=(0, -18, 0),
+                  foot_r=(0.1, 0.78, 0, 0.78), foot_l=(-0.12, 0.08, -8))
+    acts.append(rig.author("Kick_Front", [(0, S), (0.22, chamber), (0.38, extend), (0.56, pose(extend, foot_r=(0.1, 0.72, 0, 0.74))),
+                                         (0.74, chamber), (1.0, S)]))
+    # Low round kick into the lead thigh: the hips turn over, the shin swings
+    # in from the side at knee height and follows through across the line.
+    load = pose(S, hips=(30, 0, 0), torso=(20, 0, 0), foot_r=(0.3, -0.12, 45, 0.12))
+    swing = pose(S, pelvis=(0.0, 0.08, -0.04), hips=(-45, -4, 0), torso=(-25, -6, 0),
+                 foot_r=(0.38, 0.5, 80, 0.42), foot_l=(-0.1, 0.1, -40))
+    across = pose(swing, hips=(-65, -4, 0), foot_r=(0.02, 0.62, 95, 0.38))
+    acts.append(rig.author("Kick_Low", [(0, S), (0.24, load), (0.4, swing), (0.56, across), (0.8, pose(S, foot_r=(0.2, 0.05, 30, 0.15))),
+                                       (1.05, S)]))
     return acts
 
 
@@ -642,6 +660,27 @@ def reactions(rig):
                  weapon=((0.25, 0.25, 0.7), (0.1, 0.6, 0.8), (0, 0.8, -0.3)))
     acts.append(rig.author("GetUp_Front", [(0, down), (0.5, hk), (1.05, kneel), (1.6, pose(S, pelvis=(0, 0, -0.14))),
                                           (2.0, S)]))
+    # Taking a weapon up off the ground: bend at the hips and knees, the
+    # right hand goes to the floor in front of the lead foot (palm down, as
+    # to a blade lying flat), the left braces on the thigh; hold while the
+    # hand closes, then rise with it. PickUp holds its low pose from 0.45 to
+    # 0.95 s — KickbackActor attaches the weapon inside that window.
+    low = pose(S, pelvis=(0.02, -0.14, -0.58), hips=(14, 58, 0), torso=(8, 32, 0), head=(0, -20),
+               weapon=((0.2, 0.5, 0.07), (0.12, 0.99, 0.0), (-0.99, 0.12, 0.05)), elbow_r=(0.45, 0.25, 0.35),
+               lhand=((-0.18, 0.3, 0.42), (0.1, 0.4, -0.9), (0, 0.9, 0.4)), elbow_l=(-0.45, 0.05, 0.7),
+               foot_r=(0.17, 0.14, 12), foot_l=(-0.14, -0.24, -8, 0.05))
+    acts.append(rig.author("PickUp_Low", [(0, S), (0.45, low), (0.95, pose(low, pelvis=(0.02, -0.14, -0.56))),
+                                         (1.55, S)]))
+    # Putting armour on: the free hand to the head (helm, coif) or across
+    # the body (straps and buckles), weapon hand lowered out of the way.
+    lowered = ((0.3, 0.25, 0.85), (0.2, 0.5, -0.84), (0, 0.9, 0.3))
+    helm = pose(S, torso=(0, -4, 0), head=(0, 8), weapon=lowered,
+                lhand=((-0.06, 0.12, 1.72), (0.3, 0.2, 0.93), (0.9, 0.1, -0.3)), elbow_l=(-0.4, 0.2, 1.6))
+    acts.append(rig.author("Equip_Head", [(0, S), (0.35, helm), (0.7, pose(helm, head=(0, 2))), (1.1, S)]))
+    strap = pose(S, torso=(-10, 14, 0), head=(0, 20), weapon=lowered,
+                 lhand=((0.12, 0.2, 1.22), (0.9, 0.2, -0.3), (0, 0.3, 0.95)), elbow_l=(-0.3, 0.3, 1.1))
+    acts.append(rig.author("Equip_Body", [(0, S), (0.35, strap), (0.6, pose(strap, torso=(-4, 10, 0))), (0.85, strap),
+                                         (1.25, S)]))
     return acts
 
 

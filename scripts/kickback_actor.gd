@@ -16,6 +16,8 @@ signal landed_hit(target_name: String, profile_name: String)
 signal died(actor: KickbackActor)
 signal wounded(actor: KickbackActor, info: Dictionary)
 signal yielded_signal(actor: KickbackActor)
+signal weapon_dropped(actor: KickbackActor, w: PhysicsWeapon)
+signal weapon_taken(actor: KickbackActor, w: PhysicsWeapon)
 
 const WALK_SPEED := 2.5
 const SPRINT_SPEED := 4.6
@@ -84,6 +86,12 @@ var _attack_move: Dictionary = {}
 var attack_serial := 0
 var _attack_anim := ""
 var balance: ActiveBalance
+var grip: WeaponGrip
+var striker: BodyStriker
+## Set while reaching for a weapon on the ground (see pick_up()).
+var _pickup_target: PhysicsWeapon
+var _pickup_t := 0.0
+var _pickup_best := 9.0
 ## Regional wounds (see InjurySystem) and their live consequences.
 var injuries := InjurySystem.new()
 var injury_speed := 1.0
@@ -179,6 +187,14 @@ func _ready() -> void:
 	balance.name = "Balance"
 	add_child(balance)
 	balance.setup(self, _controller)
+	grip = WeaponGrip.new()
+	grip.name = "Grip"
+	add_child(grip)
+	grip.setup(self)
+	striker = BodyStriker.new()
+	striker.name = "Striker"
+	add_child(striker)
+	striker.setup(self)
 	_register_held_mass()
 
 
@@ -221,6 +237,132 @@ func _spawn_weapons() -> void:
 		shield.apply_heraldry(Heraldry.texture_for(String(spec.get("name", name))))
 		if weapon:
 			weapon.ignore_weapon(shield)
+
+
+## Rig bodies that strike in the current attack (fists, a kicking foot), or
+## empty for weapon attacks.
+func current_strikers() -> Array:
+	return _attack_move.get("strikers", []) if _attack_timer > 0.0 or attack_phase() != "none" else []
+
+
+## Kickback's arm IK (reach targets for the hands), or null.
+func arm_ik() -> ArmIKSolver:
+	return _controller._arm_ik if _controller else null
+
+
+## Lets go of the main weapon (disarm, a fall): it flies on as an ordinary
+## rigid body with [param impulse]. The fighter fights on bare-handed until
+## he picks something up.
+func drop_weapon(impulse := Vector3.ZERO) -> void:
+	if not is_instance_valid(weapon):
+		return
+	var w := weapon
+	weapon = null
+	w.release(impulse)
+	spec["weapon"] = ""
+	_attack_timer = 0.0
+	_stance_anim = _stance_for_weapon()
+	_register_held_mass()
+	weapon_dropped.emit(self, w)
+	CombatFX.play_clash(w.global_position, 0.25, false)
+
+
+func drop_shield() -> void:
+	if not is_instance_valid(shield):
+		return
+	var s := shield
+	shield = null
+	s.release()
+	spec["shield"] = false
+	_stance_anim = _stance_for_weapon()
+	_register_held_mass()
+
+
+## Nearest free weapon within [param radius] (on the ground, nobody's hand).
+func nearest_loose_weapon(radius: float) -> PhysicsWeapon:
+	var best: PhysicsWeapon = null
+	var bd := radius
+	for n in get_tree().get_nodes_in_group(&"world_items"):
+		var w := n as PhysicsWeapon
+		if not w or w.is_held() or w.is_shield:
+			continue
+		var d := w.global_position.distance_to(global_position)
+		if d < bd:
+			bd = d
+			best = w
+	return best
+
+
+## Stoops and takes up [param w]: the pickup clip plays, the right hand
+## reaches for the actual grip, and the weapon is drawn into the hand only
+## once the hand has closed on it (no teleport, no pop).
+func pick_up(w: PhysicsWeapon) -> bool:
+	if not is_instance_valid(w) or w.is_held() or is_instance_valid(weapon) or _downed or _dead or _pickup_target:
+		return false
+	_pickup_target = w
+	_pickup_t = 0.0
+	_pickup_best = 9.0
+	_attack_timer = 1.6
+	_attack_move = {"move_scale": 0.7}
+	var clip := "PickUp_Low" if anim and anim.has_animation("PickUp_Low") else "Interact"
+	if anim and anim.has_animation(clip):
+		anim.speed_scale = 1.0
+		anim.play(clip, 0.2)
+	return true
+
+
+func _update_pickup(delta: float) -> void:
+	if not _pickup_target:
+		return
+	var w := _pickup_target
+	_pickup_t += delta
+	var ik := arm_ik()
+	if not is_instance_valid(w) or w.is_held() or _downed or _dead or _pickup_t > 2.2:
+		if ik:
+			ik.end_reach("R")
+		_pickup_target = null
+		return
+	# The hand body's centre rides a few cm above the palm that closes on
+	# the grip lying on the ground.
+	var grip_pos := w.grip_world() + Vector3.UP * 0.05
+	if ik:
+		ik.begin_reach("R", grip_pos, clampf(_pickup_t / 0.35, 0.0, 1.0))
+	var hand: RigidBody3D = get_rig_bodies().get("Hand_R")
+	var hand_d := hand.global_position.distance_to(grip_pos) if hand else 9.0
+	_pickup_best = minf(_pickup_best, hand_d)
+	# Fingers close around a grip within a palm's span of the hand body.
+	var close := hand_d < 0.22
+	# Step in so the grip lies under the right hand as he bends: a little in
+	# front of and to the right of the feet.
+	var flat_to := Vector3(grip_pos.x - global_position.x, 0.0, grip_pos.z - global_position.z)
+	if flat_to.length() > 0.05:
+		face_dir = flat_to.normalized()
+	var stand := grip_pos - face_dir * 0.42 - face_dir.cross(Vector3.UP) * -0.1
+	var step := Vector3(stand.x - global_position.x, 0.0, stand.z - global_position.z)
+	move_dir = step.normalized() * clampf(step.length() * 3.0, 0.0, 0.8) if step.length() > 0.06 else Vector3.ZERO
+	if close or _pickup_t > 1.5:
+		if _pickup_best > 0.3:
+			# Out of reach after all: give up rather than yank it across.
+			if ik:
+				ik.end_reach("R")
+			_pickup_target = null
+			return
+		weapon = w
+		spec["weapon"] = w.weapon_id
+		w.attach_to(self, "R", true)
+		if is_instance_valid(shield):
+			w.ignore_weapon(shield)
+		_stance_anim = _stance_for_weapon()
+		_register_held_mass()
+		_apply_injury_effects()
+		if ik:
+			ik.end_reach("R")
+		_pickup_target = null
+		# Rise with it at the clip's own pace; the stance takes over after.
+		_attack_timer = 0.3
+		if anim and anim.current_animation.begins_with("PickUp"):
+			_attack_timer = maxf(0.3, (anim.current_animation_length - anim.current_animation_position) / maxf(anim.speed_scale, 0.1))
+		weapon_taken.emit(self, w)
 
 
 ## Held weapons count toward the balance centre of mass.
@@ -299,6 +441,7 @@ func _physics_process(delta: float) -> void:
 				_die()
 	if _downed:
 		return
+	_update_pickup(delta)
 
 	var moving := move_dir.length_squared() > 0.01
 	var speed := move_speed * (SPRINT_SPEED / WALK_SPEED if sprinting else 1.0) * _gait_scale() * injury_speed
@@ -382,9 +525,14 @@ func _update_locomotion_anim(moving: bool) -> void:
 func attack(kind: String = "cut", context: Dictionary = {}) -> bool:
 	if _downed or _dead or _attack_timer > 0.0 or not anim:
 		return false
+	# No attacking while stumbling: the body is busy catching itself.
+	if _controller and _controller.get_state_name() == "STAGGER":
+		return false
 	var wid: String = spec.get("weapon", "")
-	var wdef := WeaponCatalog.get_def(wid)
-	var family: String = wdef.get("attacks", "sword")
+	var wdef := WeaponCatalog.get_def(wid) if wid != "" else {}
+	var family: String = wdef.get("attacks", "sword") if wid != "" else "unarmed"
+	if kind == "kick":
+		family = "unarmed"  # anyone can kick, sword in hand or not
 	var move: Dictionary = AttackLibrary.pick(family, kind, _combo, context, anim, _rng)
 	if move.is_empty():
 		return false
@@ -519,7 +667,7 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 	if not body:
 		return {}
 	var w: PhysicsWeapon = info["weapon"]
-	var wdef: Dictionary = w.def if w else {}
+	var wdef: Dictionary = w.def if w else info.get("def", {})
 	var kind: String = info["kind"]
 	var speed: float = clampf(info["speed"], 0.0, 22.0)
 	var wmass: float = info.get("mass", 1.2)
@@ -577,6 +725,9 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 		"speed": speed, "part": info.get("part", ""), "struck": prot["struck"], "kind": kind, "rig_name": rig_name,
 		"hard": hard, "region": region, "fractured": inj["fractured_now"], "lethal": inj["lethal"]}
 	wounded.emit(self, result)
+	if region in ["hand_r", "forearm_r", "upper_arm_r"] and grip:
+		# A blow on the weapon arm jars the grip.
+		grip.shock((trauma + flesh * 0.5) / 7.0, dir)
 	_apply_injury_effects()
 	if inj["lethal"]:
 		_take_damage(health + 1.0)
@@ -609,6 +760,10 @@ func _apply_injury_effects() -> void:
 	if injuries.stun > 0.6 and _controller and _controller.get_state_name() == "NORMAL":
 		# Concussion: the springs go slack for a moment.
 		_controller.request_balance_step(-global_basis.z, 0.6)
+	if arm_r < 0.2 and is_instance_valid(weapon):
+		drop_weapon()  # the hand can no longer close
+	if arm_l < 0.15 and is_instance_valid(shield):
+		drop_shield()
 	if legs < 0.12 and not _downed and kickback_character:
 		# The leg gives way.
 		kickback_character.trigger_ragdoll()
@@ -675,9 +830,9 @@ func yield_fight() -> void:
 	_attack_timer = 0.0
 	weapons_live = false
 	bleed *= 0.3
-	for w in [weapon, shield]:
-		if is_instance_valid(w):
-			w.detach()
+	# He throws down his weapon: it lies in the sand like any other.
+	drop_weapon()
+	drop_shield()
 	if anim:
 		anim.speed_scale = 1.0
 		var kneel := "Crouch_Idle" if anim.has_animation("Crouch_Idle") else "Sitting_Idle"
@@ -688,14 +843,21 @@ func yield_fight() -> void:
 	yielded_signal.emit(self)
 
 
-## Weapon-on-weapon contact: the blow deflects — the attack loses its drive
-## for a beat instead of passing through the parry.
-func on_weapon_clash(_other: PhysicsWeapon, intensity: float) -> void:
-	if _attack_timer > 0.0 and intensity > 0.35:
-		_attack_timer = minf(_attack_timer, 0.25)
-		if weapon:
-			weapon.control = 0.55
-			get_tree().create_timer(0.22).timeout.connect(func(): if is_instance_valid(weapon): weapon.control = 1.0)
+## Weapon-on-weapon contact. The blow is not cancelled by script: the
+## physical collision already changed the blade's path, and the hand spring
+## is softened for a moment so the deflection carries through instead of
+## snapping back to the animation. A hard enough clash can tear the weapon
+## out of a weak hand.
+func on_weapon_clash(other: PhysicsWeapon, intensity: float) -> void:
+	if is_instance_valid(weapon) and weapon.is_held():
+		weapon.soften(lerpf(0.75, 0.3, intensity), 0.18 + intensity * 0.25)
+		var shock := intensity * 2.4 * sqrt(other.mass / 1.2) if is_instance_valid(other) else intensity * 2.4
+		var away := (weapon.global_position - other.global_position).normalized() if is_instance_valid(other) else Vector3.UP
+		if grip and grip.shock(shock, away):
+			return
+	if _attack_timer > 0.0 and intensity > 0.45:
+		# A hard parry ends the committed part of the attack sooner.
+		_attack_timer = minf(_attack_timer, 0.3)
 
 
 ## Death reads through the rig: a guaranteed ragdoll into persistent (limp)
@@ -712,9 +874,8 @@ func _die() -> void:
 		# man would get back up.)
 		kickback_character.set_persistent(true)
 	# The grip goes slack: the weapon falls from a dead hand.
-	for w in [weapon, shield]:
-		if is_instance_valid(w):
-			w.detach()
+	drop_weapon()
+	drop_shield()
 	died.emit(self)
 
 
@@ -755,6 +916,11 @@ func _on_stagger_finished() -> void:
 
 func _on_ragdoll_started() -> void:
 	_downed = true
+	# A man knocked off his feet lets go of what is in his hands.
+	if is_instance_valid(weapon):
+		drop_weapon(weapon.linear_velocity * weapon.mass * 0.2)
+	if is_instance_valid(shield):
+		drop_shield()
 	# Dust when the body meets the ground, a beat after the fall starts.
 	get_tree().create_timer(0.45).timeout.connect(func():
 		if is_instance_valid(self):

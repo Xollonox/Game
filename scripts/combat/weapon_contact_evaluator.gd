@@ -48,6 +48,10 @@ const CLASS_DEFAULTS := {
 		"blunt_energy": 9.0, "edge_align": 1.0, "thrust_align": 1.0},
 	"club": {"min_cut": 99.0, "min_thrust": 99.0, "min_blunt": 3.6, "cut_energy": 99.0, "thrust_energy": 99.0,
 		"blunt_energy": 8.0, "edge_align": 1.0, "thrust_align": 1.0},
+	"fist": {"min_cut": 99.0, "min_thrust": 99.0, "min_blunt": 3.2, "cut_energy": 99.0, "thrust_energy": 99.0,
+		"blunt_energy": 9.0, "edge_align": 1.0, "thrust_align": 1.0},
+	"foot": {"min_cut": 99.0, "min_thrust": 99.0, "min_blunt": 2.6, "cut_energy": 99.0, "thrust_energy": 99.0,
+		"blunt_energy": 16.0, "edge_align": 1.0, "thrust_align": 1.0},
 	"shield": {"min_cut": 99.0, "min_thrust": 99.0, "min_blunt": 3.0, "cut_energy": 99.0, "thrust_energy": 99.0,
 		"blunt_energy": 15.0, "edge_align": 1.0, "thrust_align": 1.0},
 }

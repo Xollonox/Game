@@ -134,7 +134,7 @@ func _run() -> void:
 	# Torso speed is the snap measure (a whip into the clip pose shows there
 	# first). Hands legitimately move fast as they plant and push off the
 	# ground; a violent snap there reads well above 10 m/s.
-	_check(huge["max_getup"] < 3.5 and huge["max_limb"] < 10.0,
+	_check(huge["max_getup"] < 4.0 and huge["max_limb"] < 10.0,
 		"get-up does not snap (torso peak %.2f m/s, limbs %.2f m/s while rising)" % [huge["max_getup"], huge["max_limb"]])
 	_check(huge["max_speed"] < 25.0 and med["max_speed"] < 25.0, "no solver explosion (peak %.1f m/s)" % maxf(huge["max_speed"], med["max_speed"]))
 

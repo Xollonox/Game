@@ -72,6 +72,22 @@ const MOVES := {
 			{"anim": "Punch_Jab", "dir": "thrust", "speed": 1.0, "commit": 0.7}],
 		"heavy": [{"anim": "Dagger_Stab_High", "dir": "high", "speed": 0.9, "commit": 0.8}],
 	},
+	"unarmed": {
+		"cut": [
+			{"anim": "Punch_Jab", "dir": "thrust", "speed": 1.05, "commit": 0.62, "strikers": ["Hand_L", "Hand_R"]},
+			{"anim": "Punch_Cross", "dir": "right", "speed": 1.0, "commit": 0.66, "strikers": ["Hand_R", "Hand_L"]},
+			{"anim": "Melee_Hook", "dir": "left", "speed": 1.0, "commit": 0.7, "strikers": ["Hand_R", "Hand_L"]},
+		],
+		"thrust": [{"anim": "Punch_Jab", "dir": "thrust", "speed": 1.05, "commit": 0.62, "strikers": ["Hand_L", "Hand_R"]}],
+		"heavy": [{"anim": "Punch_Cross", "dir": "high", "speed": 0.9, "commit": 0.75, "strikers": ["Hand_R", "Hand_L"]}],
+		# Any fighter can kick, armed or not (see KickbackActor.attack).
+		"kick": [
+			{"anim": "Kick_Front", "dir": "thrust", "speed": 1.0, "commit": 0.8, "move_scale": 0.3,
+				"strikers": ["Foot_R", "LowerLeg_R"]},
+			{"anim": "Kick_Low", "dir": "low", "speed": 1.0, "commit": 0.8, "move_scale": 0.3,
+				"strikers": ["Foot_R", "LowerLeg_R"]},
+		],
+	},
 	"spear": {
 		"cut": [
 			{"anim": "Spear_Thrust", "dir": "thrust", "speed": 1.0, "commit": 0.75, "move_scale": 0.8},
@@ -97,7 +113,7 @@ static func pick(family: String, kind: String, combo: int, context: Dictionary, 
 	for m in list:
 		if anim.has_animation(m["anim"]):
 			avail.append(m)
-	if avail.is_empty() and family != "sword":
+	if avail.is_empty() and family != "sword" and family != "unarmed":
 		return pick("sword", kind, combo, context, anim, rng)
 	if avail.is_empty():
 		return {}
@@ -119,7 +135,7 @@ static func pick(family: String, kind: String, combo: int, context: Dictionary, 
 
 static func _is_authored(m: Dictionary) -> bool:
 	var a := String(m["anim"])
-	return not (a.begins_with("Sword_") or a.begins_with("Punch") or a.begins_with("Melee"))
+	return not (a.begins_with("Sword_") or a.begins_with("Melee"))
 
 
 static func stance_candidates(family: String, has_shield: bool) -> Array:

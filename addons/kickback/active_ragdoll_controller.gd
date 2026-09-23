@@ -433,6 +433,16 @@ func _update_stagger(delta: float) -> void:
 		# slot frees up.
 		if _tuning.knockdown_enabled and balance > _tuning.balance_ragdoll_threshold \
 				and not _stumbling:
+			# Bare Steel: a self-caught stumble (request_balance_step) keeps
+			# stepping toward the capture point before it is allowed to fall.
+			if _balance_step_mode and _stumble_step_count < _tuning.stumble_max_steps + 2 and _foot_ik:
+				var imb: Vector2 = balance_state.imbalance_dir
+				if imb.length_squared() > 0.001:
+					_stumble_dir = Vector3(imb.x, 0.0, imb.y).normalized()
+					_stumble_drift = 0.7
+					_stumble_dist_since_step = _tuning.stumble_step_length
+					_stumbling = true
+					return
 			if _try_acquire_ragdoll_slot():
 				_full_ragdoll()
 				return
@@ -1384,10 +1394,17 @@ func request_balance_step(direction: Vector3, drift: float) -> bool:
 		return false
 	next_stumble_drift = drift
 	_start_stagger(direction)
+	_balance_step_mode = true
 	return true
 
 
+## Bare Steel: true while the current stagger is a self-caught balance step
+## (no blow behind it) — it re-steps instead of tipping over.
+var _balance_step_mode := false
+
+
 func _start_stagger(hit_dir: Vector3) -> void:
+	_balance_step_mode = false
 	_restore_disabled_collisions()
 	_state = State.STAGGER
 	_stagger_elapsed = 0.0
