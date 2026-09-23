@@ -1479,7 +1479,11 @@ func _effective_base_strength(rig_name: String) -> float:
 	var fatigue_factor := 1.0 - _fatigue * _tuning.fatigue_impact
 	var injury: float = _injuries.get(rig_name, 0.0)
 	var injury_factor := 1.0 - injury * _tuning.injury_impact
-	return base * fatigue_factor * injury_factor
+	# Bare Steel: wounds (SpringResolver.impairment) cap strength everywhere,
+	# including the get-up ramp — otherwise the ramp and the cap fight and a
+	# wounded torso whips.
+	var wound_factor := 1.0 - float(_spring.impairment.get(rig_name, 0.0)) * 0.85
+	return base * fatigue_factor * injury_factor * wound_factor
 
 
 func _reduce_strength(rig_name: String, reduction: float, spread: int) -> void:
