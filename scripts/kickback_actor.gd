@@ -331,6 +331,7 @@ func attack(kind: String = "cut", context: Dictionary = {}) -> bool:
 	var dur := anim.get_animation(move["anim"]).length
 	_attack_timer = float(move.get("commit", 0.8)) * dur / rate
 	_attack_move = move
+	CombatFX.play_cloth(global_position + Vector3.UP, worn_weight)
 	return true
 
 
@@ -436,6 +437,7 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 		CombatFX.armor_impact(point, dir, clampf(force / 20.0, 0.1, 1.0), String(prot["struck"]))
 	if dmg >= 3.0:
 		CombatFX.impact(point, dir, sev)
+		CombatFX.play_wound(point, kind, sev)
 		if kind == "cut" and prot["remaining"] > 0.5:
 			bleed += dmg * 0.06
 	elif not hard:

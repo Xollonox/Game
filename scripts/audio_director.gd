@@ -74,6 +74,11 @@ func _looped(path: String) -> AudioStream:
 		(s as AudioStreamOggVorbis).loop = true
 	elif s is AudioStreamMP3:
 		(s as AudioStreamMP3).loop = true
+	elif s is AudioStreamWAV:
+		var w := s as AudioStreamWAV
+		w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		w.loop_begin = 0
+		w.loop_end = int(w.get_length() * w.mix_rate)
 	return s
 
 
@@ -168,10 +173,7 @@ func crowd_cheer(strength: float) -> void:
 ## The Hollow: no crowd, no music — only the wind, slowed until it groans.
 func hollow_ambience() -> void:
 	_crowd.stop()
-	var t := create_tween()
-	t.tween_property(_music, "volume_db", -40.0, 1.5)
-	t.tween_callback(_music.stop)
-	_current_music = ""
+	play_music("res://assets/audio/Hollow_Drone.wav")
 	if _wind.stream:
 		_wind.pitch_scale = 0.55
 		_wind.volume_db = _db(GameState.master * GameState.ambience) + 3.0

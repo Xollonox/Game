@@ -62,6 +62,7 @@ All under the SIL Open Font License 1.1 (OFL), which permits bundling and modifi
 
 ### Kenney (CC0)
 - **Impact Sounds** — https://kenney.nl/assets/impact-sounds — metal plate impacts used for weapon clashes (`assets/sfx/kenney/metal/`) and concrete footsteps (`assets/sfx/kenney/footsteps/`).
+- **RPG Audio** — https://kenney.nl/assets/rpg-audio — dirt footsteps, cloth rustles, knife slices (cut wounds) and chop (heavy/blunt wounds) in `assets/sfx/kenney/rpg/`, unmodified.
 - **UI Audio** — https://kenney.nl/assets/ui-audio — interface clicks and hovers (`assets/audio/ui/`).
 - **Castle Kit / Fantasy Town Kit / Survival Kit / Nature Kit** — https://kenney.nl/assets — reference geometry and material study for the Blender world kit.
 - **License:** CC0 1.0 Universal
@@ -72,6 +73,9 @@ All under the SIL Open Font License 1.1 (OFL), which permits bundling and modifi
 - **Medieval: Rejoicing** — https://opengameart.org/content/medieval-rejoicing — fight theme (`Loop_Rejoicing.ogg`). Same re-encode.
 - **CC0 Fantasy Music & Sounds** by Sir Gawain — https://opengameart.org/content/cc0-fantasy-music-sounds — open-air wind bed (`Forest_Ambience.ogg`, re-encoded from MP3 to Ogg Vorbis).
 - **License:** CC0 1.0 Universal (attribution not required; recorded here for provenance).
+
+### Original
+- `assets/audio/Hollow_Drone.wav` — the Hollow's ambience: synthesised in Python for this repo (detuned low sines + slow filtered noise, seamless 24 s loop). Public domain / project-owned.
 
 ### SFX — `assets/sfx/`
 - **Battle Sound Effects** — https://opengameart.org/content/battle-sound-effects — CC0 option chosen; swish/whoosh sounds.
