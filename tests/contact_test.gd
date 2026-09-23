@@ -253,8 +253,10 @@ func _live_tests() -> void:
 	var sum_plate := 0.0
 	for i in 6:
 		info["point"] = bare.get_chest_position()
-		sum_bare += float(bare.receive_weapon_hit(info).get("damage", 0.0))
+		# Flesh reached per blow (the bare forearm may well come off after a
+		# few of these; a severed region takes no further systemic damage).
+		sum_bare += float(bare.receive_weapon_hit(info).get("flesh", 0.0))
 		info["point"] = plate.get_chest_position()
-		sum_plate += float(plate.receive_weapon_hit(info).get("damage", 0.0))
+		sum_plate += float(plate.receive_weapon_hit(info).get("flesh", 0.0))
 	_check(sum_plate < sum_bare * 0.35, "cut into plate is strongly reduced (%.1f vs bare %.1f)" % [sum_plate, sum_bare])
 	await _clear()

@@ -1556,6 +1556,10 @@ func _compute_balance_state() -> Dictionary:
 	_balance_tick = tick
 	var g := float(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8))
 	var bodies := _rig_builder.get_bodies()
+	if not _spring.severed.is_empty():
+		bodies = bodies.duplicate()
+		for k: String in _spring.severed:
+			bodies.erase(k)  # a severed limb is not part of this body's balance
 	if not extra_mass_bodies.is_empty():
 		bodies = bodies.duplicate()
 		for k: String in extra_mass_bodies:

@@ -164,6 +164,11 @@ def main():
     except ImportError as e:
         print("NO_WARDROBE", e)
 
+    # Limb segments for dismemberment (after decimation, so the cut pieces
+    # keep matching boundaries).
+    import segments
+    segments.split_all(arm)
+
     # Every action as its own NLA track so the exporter emits them all.
     arm.animation_data_create()
     arm.animation_data.action = None

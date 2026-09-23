@@ -17,6 +17,7 @@ signal died(actor: KickbackActor)
 signal wounded(actor: KickbackActor, info: Dictionary)
 signal yielded_signal(actor: KickbackActor)
 signal weapon_dropped(actor: KickbackActor, w: PhysicsWeapon)
+signal severed_limb(actor: KickbackActor, region: String)
 signal weapon_taken(actor: KickbackActor, w: PhysicsWeapon)
 
 const WALK_SPEED := 2.5
@@ -691,7 +692,10 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 		* float(blunt_prot["remaining"])
 	if kind == "blunt":
 		trauma = maxf(trauma, flesh)
+	var tissue_before := float(injuries.regions[region]["tissue"])
 	var inj := injuries.apply(region, kind, flesh if kind != "blunt" else flesh * 0.4, trauma)
+	var sever: bool = not injuries.regions[region]["severed"] and Dismemberment.qualifies(region, kind, flesh, quality,
+		wdef, float(prot["remaining"]), tissue_before)
 
 	# Momentum knock: blunt weapons and heavy blows move even armoured men;
 	# worn weight steadies them.
@@ -713,8 +717,11 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 	if hard:
 		CombatFX.armor_impact(point, dir, clampf(force / 20.0, 0.1, 1.0), String(prot["struck"]))
 	if flesh >= 3.0 and kind != "blunt":
-		CombatFX.impact(point, dir, sev)
+		# The blood comes from the wound: a source on the struck body at the
+		# contact point, facing out of it, bleeding at the region's rate.
+		CombatFX.impact(point, dir, sev, false)
 		CombatFX.play_wound(point, kind, sev)
+		BleedingSource.attach(body, point, (point - body.global_position).normalized(), injuries, region, dir, sev)
 		_add_wound(body, point, clampf(0.04 + flesh / 220.0, 0.04, 0.16))
 	elif not hard:
 		CombatFX.play_hit(point, clampf(trauma / 30.0, 0.1, 0.8))
@@ -724,6 +731,17 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 	var result := {"profile": String(profile.profile_name), "damage": systemic, "flesh": flesh, "trauma": trauma,
 		"speed": speed, "part": info.get("part", ""), "struck": prot["struck"], "kind": kind, "rig_name": rig_name,
 		"hard": hard, "region": region, "fractured": inj["fractured_now"], "lethal": inj["lethal"]}
+	result["severed"] = sever
+	if sever:
+		Dismemberment.sever(self, region, point, dir, clampf(force * 1.6, 4.0, 30.0))
+		severed_limb.emit(self, region)
+		if region == "neck":
+			inj["lethal"] = true
+		elif region.begins_with("thigh") or region.begins_with("shin"):
+			# No leg to stand on.
+			if kickback_character:
+				kickback_character.set_persistent(true)
+			_downed = true
 	wounded.emit(self, result)
 	if region in ["hand_r", "forearm_r", "upper_arm_r"] and grip:
 		# A blow on the weapon arm jars the grip.

@@ -30,7 +30,12 @@ static func apply(model: Node3D, spec: Dictionary) -> void:
 	var colors: Dictionary = spec.get("colors", {})
 	for node in model.find_children("*", "MeshInstance3D", true, false):
 		var mi := node as MeshInstance3D
-		var n := String(mi.name)
+		# Meshes are cut into limb segments ("G_Shirt__forearm_l", see
+		# tools/blender/segments.py): the wardrobe matches the base name, the
+		# dismemberment code the segment.
+		var full := String(mi.name)
+		var n := full.get_slice("__", 0)
+		mi.set_meta(&"segment", full.get_slice("__", 1) if full.contains("__") else "core")
 		var visible := true
 		if n.begins_with("B_"):
 			visible = not hidden_zones.has(n.substr(2))
@@ -42,6 +47,8 @@ static func apply(model: Node3D, spec: Dictionary) -> void:
 			visible = n == hair and not hide_hair
 		elif n == "Icosphere":
 			visible = false
+		if String(mi.get_meta(&"segment")) in (model.get_meta(&"severed", []) as Array):
+			visible = false  # a limb that is no longer there
 		mi.visible = visible
 		if not visible:
 			continue

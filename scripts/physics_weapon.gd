@@ -385,6 +385,16 @@ func _check_hits(state: PhysicsDirectBodyState3D) -> void:
 		}
 		var result: Dictionary = target_actor.receive_weapon_hit(info)
 		landed_hit.emit(target_actor.name, String(result.get("profile", "")))
+		if result.get("hard", false) and grip_body:
+			# Plate or mail turned the blow: the blade glances off. Reflect
+			# what was driving into the surface and let the hand go soft for
+			# a beat so the deflection shows instead of the pose pulling the
+			# edge back through the armour.
+			var n := state.get_contact_local_normal(i).normalized()
+			var into := n * state.linear_velocity.dot(n)
+			state.linear_velocity -= into * 1.45
+			state.angular_velocity *= 0.6
+			soften(0.35, 0.22)
 		if float(verdict["speed"]) >= STICK_SPEED and verdict["kind"] != "blunt":
 			_stuck_timer = STUCK_DURATION
 	_bind_steps = _bind_steps + 1 if touching_weapon else 0

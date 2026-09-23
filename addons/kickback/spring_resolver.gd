@@ -37,6 +37,8 @@ var _settle_timer: float = 0.0
 var _default_recovery_rate: float = 0.3
 ## Bare Steel: rig name -> 0..1 lasting impairment from wounds (InjurySystem).
 var impairment: Dictionary = {}
+## Bare Steel: rig names cut off the body (Dismemberment): never driven again.
+var severed: Dictionary = {}
 var _target_overrides: Dictionary = {}  # rig_name → Transform3D (temporary blend targets)
 var _pin_injury_modifiers: Dictionary = {}  # rig_name → float (0.0-1.0, reduces pin strength)
 var _tuning: RagdollTuning
@@ -197,6 +199,8 @@ func _physics_process(delta: float) -> void:
 	# Parent-first: a child's linear command reads its parent's velocities as
 	# written THIS tick (see the chain block below).
 	for rig_name: String in _order:
+		if severed.has(rig_name):
+			continue  # Bare Steel: a severed limb is no longer driven
 		var state: Dictionary = _bones[rig_name]
 		var body: RigidBody3D = state.body
 
