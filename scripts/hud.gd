@@ -782,30 +782,36 @@ func show_panel(title: String, color: Color, lines: Array, buttons: Array) -> vo
 	_choice_panel(title, color, lines, buttons)
 
 
-func show_victory(enc: Dictionary, run: Dictionary, fallen: Array, weapons: Array, pspec: Dictionary) -> void:
+func show_victory(enc: Dictionary, run: Dictionary, fallen: Array, looted: Array, pspec: Dictionary,
+		coin := 0) -> void:
 	var lines := [
-		["+%d renown  ·  %d in all" % [int(enc.get("renown", 0)), int(run.get("renown", 0))], 22, 600],
-		["You now stand as %s." % Tournament.standing(int(run.get("bout", 0))).to_lower(), 18],
+		["+%d renown  ·  +%d coin" % [int(enc.get("renown", 0)), coin], 22, 600],
+		["You now stand as %s  ·  %d renown  ·  %d coin in your purse" % [
+			Tournament.standing(int(run.get("bout", 0))).to_lower(), int(run.get("renown", 0)), int(run.get("purse", 0))], 17],
 	]
 	var names: Array[String] = []
 	for f in fallen:
 		names.append(String(f.get("name", "")))
 	if not names.is_empty():
 		lines.append(["Left in the sand: " + ", ".join(names), 16])
-	lines.append(["", 8])
-	lines.append(["SPOILS OF THE YARD", 14, 700])
-	# Promotion: a new rank brings a better kit.
 	var before := Tournament.rank_for_bout(int(run.get("bout", 1)) - 1)
 	var now := Tournament.rank_for_bout(int(run.get("bout", 0)))
 	if now > before:
-		var kit := Armory.player_kit_for_rank(pspec, now)
-		lines.insert(1, ["RAISED TO %s — you are fitted with %s" % [Armory.rank_name(now).to_upper(),
-			describe_kit(kit).get_slice(" · ", 0)], 17, 700])
-	var buttons := []
-	for w in weapons.slice(0, 3):
-		buttons.append(["Take the %s  (%s)" % [WeaponCatalog.display_name(w).to_lower(), weapon_note(w)], "spoils", w, false])
-	buttons.push_front(["Keep your %s" % WeaponCatalog.display_name(pspec.get("weapon", "")).to_lower(), "spoils", "", true])
+		lines.insert(1, ["RAISED TO %s — the armourer will show you finer pieces" % Armory.rank_name(now).to_upper(), 17, 700])
+	var buttons := [["Fight On", "spoils", "", true], ["The Armourer's Tent", "shop", ""]]
+	if not looted.is_empty():
+		lines.append(["", 6])
+		lines.append(["SPOILS TAKEN INTO YOUR PACK", 14, 700])
+		for w in looted.slice(0, 3):
+			if w == "heater_shield" and not Shop.one_handed(pspec.get("weapon", "")):
+				continue
+			buttons.insert(buttons.size() - 1, ["Take up the %s  (%s)" % [WeaponCatalog.display_name(w).to_lower(),
+				weapon_note(w)], "spoils", w, false])
 	_choice_panel("VICTORY", UITheme.BRASS, lines, buttons)
+
+
+func hide_panel() -> void:
+	_clear_overlay()
 
 
 func show_champion(run: Dictionary) -> void:

@@ -31,7 +31,8 @@ damage from its own measured contact speed.
 ## The run
 
 - **Tournament ladder** (`scripts/tournament.gd`): 17 bouts across seven ranks — Vagrant, Peasant, Militiaman, Soldier, Veteran, Man-at-Arms, Knight — escalating opponent skill, equipment and numbers: duels, 2v1, free-for-all melees where the fighters kill each other too, gauntlets where they come through the gate one by one, and a 1v6 Grand Melee. A bout director hands out attack tokens so groups circle and wait their turn instead of piling on.
-- **Progression**: renown per bout, a better kit at each rank, and a choice of spoils (the weapons of the fallen) after every win. Persistent in `user://run.cfg`.
+- **Progression**: renown and coin per bout. The weapons of the fallen go into your pack; a spare of one you already carry is sold on the spot. Persistent in `user://run.cfg`.
+- **The Armourer's Tent** (after every win and from the hall): buy, sell and wear weapons and armour. There are 23 armour pieces over nine slots (body, mail, plate, head, neck, arms, hands, legs, feet) and all nine weapons, including the shield. Finer stock unlocks as your rank rises. Mail and plate must go over a gambeson, a shield needs a one-handed weapon, and the armourer buys back at half price. Keyboard: arrows and Enter, `Q`/`E` to switch tabs, `Esc` to leave. Every control is also a touch button.
 - **Mercy**: a beaten opponent may yield — kneel and drop his weapon. That wins the bout, and a man you spare owes the Hollow nothing; strike him anyway and he is one more soul waiting below. Low-born fighters yield readily, knights rarely.
 - **Death and the Hollow** (`scenes/hollow.tscn`): death offers *Descend into the Hollow*, *Begin a New Life* or *Return to the Hall*. The Hollow is a drowned ruin of the yard where the shades of the men you killed come for you. Lay them to rest and you climb back to the living; fall there and your name is forgotten.
 
@@ -94,7 +95,8 @@ xvfb-run -a godot --path . res://tests/world_vision_test.tscn -- --shots=/tmp/wo
 xvfb-run -a godot --path . res://tests/gameplay_test.tscn -- --bout=4 --shots=/tmp/g   # bot plays a bout
 xvfb-run -a godot --path . res://tests/gameplay_test.tscn -- --hollow                   # bot in the Hollow
 xvfb-run -a godot --path . res://tests/fighter_gallery.tscn -- --shots=/tmp/gallery     # one fighter per rank
-xvfb-run -a godot --path . res://tests/flow_test.tscn                                  # full run loop: win, spoils, die, Hollow, return, run over
+xvfb-run -a godot --path . res://tests/flow_test.tscn                                  # full run loop: win, shop, spoils, die, Hollow, return, run over
+xvfb-run -a godot --path . res://tests/shop_test.tscn                                  # shop/inventory rules + tent screenshots
 ```
 
 `bench.tscn` takes `--noworld` to isolate the world's cost, `gameplay_test.tscn`

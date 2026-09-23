@@ -173,6 +173,11 @@ func _build_ui() -> void:
 		st.add_theme_constant_override("outline_size", 4)
 		column.add_child(st)
 		column.add_child(_spacer(10.0))
+		if not in_hollow:
+			var shop := _button("The Armourer's Tent", false)
+			shop.pressed.connect(_open_shop)
+			column.add_child(shop)
+			column.add_child(_spacer(10.0))
 		var fresh := _button("Begin a New Life", false)
 		fresh.pressed.connect(func():
 			GameState.new_run()
@@ -322,6 +327,17 @@ func _panel(title_text: String, content: Control) -> Control:
 	back.pressed.connect(_close_panel)
 	box.add_child(_centered(back))
 	return holder
+
+
+func _open_shop() -> void:
+	AudioDirector.ui_click()
+	var layer := CanvasLayer.new()
+	layer.layer = 20
+	add_child(layer)
+	var ui := ShopUI.open(layer, GameState.run, Tournament.rank_for_bout(int(GameState.run.get("bout", 0))))
+	ui.closed.connect(func():
+		layer.queue_free()
+		get_tree().reload_current_scene())
 
 
 func _show_panel(panel: Control) -> void:

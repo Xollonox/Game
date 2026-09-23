@@ -308,6 +308,9 @@ func _player_yielded() -> void:
 	], [["Fight the Bout Again", "retry", "", true], ["Return to the Hall", "menu", ""]])
 
 
+var _victory_args: Array = []
+
+
 func _victory() -> void:
 	phase = Phase.VICTORY
 	AudioDirector.crowd_cheer(1.0)
@@ -337,23 +340,33 @@ func _victory() -> void:
 		if e.is_dead() and e.last_attacker == player:
 			mine.append(e.spec)
 	var renown: int = encounter.get("renown", 10)
-	GameState.bout_won(renown, mine)
+	var coin := Shop.bout_purse(renown, _enemies.size())
+	var looted: Array = Shop.loot(GameState.run, weapons)
+	GameState.bout_won(renown, mine, coin)
+	_victory_args = [encounter, GameState.run, fallen_specs, looted[0], player.spec, coin + int(looted[1])]
 	await get_tree().create_timer(2.2, true, false, true).timeout
 	if not is_inside_tree():
 		return
-	hud.show_victory(encounter, GameState.run, fallen_specs, weapons, player.spec)
+	hud.callv("show_victory", _victory_args)
 
 
 func _on_choice(kind: String, value: String) -> void:
 	match kind:
 		"spoils":
 			if value != "":
-				GameState.set_weapon(value, WeaponCatalog.get_def(value).get("class", "") in ["sword", "axe", "mace", "club"]
-					and bool(player.spec.get("shield", false)))
+				Shop.ensure(GameState.run)
+				if not Shop.owns(GameState.run, value):
+					(GameState.run["owned"] as Array).append(value)
+				Shop.equip(GameState.run, value)
+				GameState.save_run()
 			if int(GameState.run.get("bout", 0)) >= Tournament.bout_count():
 				hud.show_champion(GameState.run)
 			else:
 				_next_scene("res://scenes/arena.tscn")
+		"shop":
+			hud.hide_panel()
+			var ui := ShopUI.open(hud, GameState.run, Tournament.rank_for_bout(int(GameState.run.get("bout", 0))))
+			ui.closed.connect(func(): hud.callv("show_victory", _victory_args))
 		"hollow":
 			GameState.enter_hollow()
 			_next_scene("res://scenes/hollow.tscn")

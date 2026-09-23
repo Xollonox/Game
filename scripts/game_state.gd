@@ -78,7 +78,9 @@ func new_run() -> void:
 		"best_bout": 0,
 		"over": false,
 		"mode": "arena",
+		"purse": Shop.STARTING_PURSE,
 	}
+	Shop.ensure(run)
 	save_run()
 
 
@@ -89,6 +91,8 @@ func load_run() -> void:
 	var r = cfg.get_value("run", "data", {})
 	if r is Dictionary:
 		run = r
+		if not run.is_empty():
+			Shop.ensure(run)
 
 
 func save_run() -> void:
@@ -98,14 +102,15 @@ func save_run() -> void:
 
 
 func player_spec() -> Dictionary:
-	var rank := Tournament.rank_for_bout(int(run.get("bout", 0)))
-	var p: Dictionary = Armory.player_kit_for_rank(run.get("player", {}), rank)
+	var p: Dictionary = (run.get("player", {}) as Dictionary).duplicate(true)
+	p["garments"] = Shop.garments_for(run)
 	return p
 
 
-## A bout was won: renown, record the fallen, advance.
-func bout_won(renown_gain: int, fallen: Array) -> void:
+## A bout was won: renown and coin, record the fallen, advance.
+func bout_won(renown_gain: int, fallen: Array, coin := 0) -> void:
 	run["renown"] = int(run.get("renown", 0)) + renown_gain
+	run["purse"] = int(run.get("purse", 0)) + coin
 	run["bout"] = int(run.get("bout", 0)) + 1
 	run["best_bout"] = maxi(int(run.get("best_bout", 0)), int(run["bout"]))
 	var slain: Array = run.get("slain", [])
@@ -120,6 +125,9 @@ func bout_won(renown_gain: int, fallen: Array) -> void:
 
 
 func set_weapon(weapon_id: String, shield: bool) -> void:
+	Shop.ensure(run)
+	if not weapon_id in (run["owned"] as Array):
+		(run["owned"] as Array).append(weapon_id)
 	var p: Dictionary = run.get("player", {})
 	p["weapon"] = weapon_id
 	p["shield"] = shield

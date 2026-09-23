@@ -77,9 +77,23 @@ func _run() -> void:
 	get_viewport().get_texture().get_image().save_png("/tmp/flow_victory.png")
 	_check(int(GameState.run["bout"]) == 3, "victory advances the bout (%d)" % int(GameState.run["bout"]))
 	_check(int(GameState.run["renown"]) > 0, "victory awards renown")
+	_check(int(GameState.run["purse"]) > Shop.STARTING_PURSE, "victory fills the purse (%d)" % int(GameState.run["purse"]))
+	arena._on_choice("shop", "")
+	await _wait(0.8)
+	var tent: Node = arena.hud.get_children().filter(func(c): return c is ShopUI).front() \
+		if arena.hud.get_children().any(func(c): return c is ShopUI) else null
+	_check(tent != null, "the armourer's tent opens from the victory screen")
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("/tmp/flow_shop.png")
+	if tent:
+		GameState.run["purse"] = 500
+		Shop.buy(GameState.run, "gambeson", 1)
+		tent._close()
+	await _wait(1.2)
 	arena._on_choice("spoils", "bearded_axe")
 	await _changed(arena)
 	_check(GameState.run["player"]["weapon"] == "bearded_axe", "spoils change the player's weapon")
+	_check("A_Gambeson" in (_scene().player.spec["garments"] as Array), "the next bout wears what was bought")
 	arena = _scene()
 	_check(arena.name == "Arena", "next bout loads")
 	arena._start_fight()
