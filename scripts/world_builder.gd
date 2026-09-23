@@ -195,6 +195,7 @@ func _build_ground() -> void:
 	_disc(420.0, 0.0, _ground_mat("mudfield", Color(0.5, 0.47, 0.4), 0.1), 64)
 	_build_horizon()
 	_build_lists()
+	_build_pavilions()
 
 
 static var _gm_cache: Dictionary = {}
@@ -390,6 +391,90 @@ func _build_lists() -> void:
 		_banners.append(place("banner_red" if i % 2 == 0 else "banner_blue", pos, a + PI, lists, true, 0.85, "", true))
 
 
+## Competitors' pavilions in the yard's corners: striped round tents in each
+## lord's colours with a pennant on the king-pole — the tournament camp.
+func _build_pavilions() -> void:
+	# Weathered, sun-faded dyes: pavilions stood out all season.
+	var colours := [[Color(0.5, 0.14, 0.11), Color(0.76, 0.73, 0.66)], [Color(0.16, 0.22, 0.4), Color(0.66, 0.54, 0.26)],
+		[Color(0.16, 0.3, 0.18), Color(0.76, 0.73, 0.66)], [Color(0.34, 0.18, 0.3), Color(0.66, 0.54, 0.26)]]
+	var angles := [PI * 0.29, PI * 0.71, PI * 1.29, PI * 1.71]
+	for i in angles.size():
+		var a: float = angles[i]
+		var pos := Vector3(sin(a) * 12.4, 0.0, -cos(a) * 12.4)
+		var tex := _stripe_texture(colours[i][0], colours[i][1])
+		var cloth := StandardMaterial3D.new()
+		cloth.albedo_texture = tex
+		cloth.roughness = 0.95
+		cloth.cull_mode = BaseMaterial3D.CULL_DISABLED
+		var wall := CylinderMesh.new()
+		wall.top_radius = 1.55
+		wall.bottom_radius = 1.65
+		wall.height = 1.9
+		wall.radial_segments = 20
+		wall.cap_top = false
+		wall.cap_bottom = false
+		wall.material = cloth
+		var wmi := MeshInstance3D.new()
+		wmi.mesh = wall
+		wmi.position = pos + Vector3.UP * 0.95
+		add_child(wmi)
+		var roof := CylinderMesh.new()
+		roof.top_radius = 0.02
+		roof.bottom_radius = 1.85
+		roof.height = 1.5
+		roof.radial_segments = 20
+		roof.cap_bottom = false
+		roof.material = cloth
+		var rmi := MeshInstance3D.new()
+		rmi.mesh = roof
+		rmi.position = pos + Vector3.UP * 2.6
+		add_child(rmi)
+		var pole := CylinderMesh.new()
+		pole.top_radius = 0.03
+		pole.bottom_radius = 0.04
+		pole.height = 1.2
+		pole.material = WorldMaterials.get_material("M_WoodDark")
+		var pmi := MeshInstance3D.new()
+		pmi.mesh = pole
+		pmi.position = pos + Vector3.UP * 3.9
+		add_child(pmi)
+		var pen := QuadMesh.new()
+		pen.size = Vector2(0.9, 0.3)
+		var pm := StandardMaterial3D.new()
+		pm.albedo_color = colours[i][0]
+		pm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		pen.material = pm
+		var pnm := MeshInstance3D.new()
+		pnm.mesh = pen
+		pnm.position = pos + Vector3(0.45, 4.35, 0)
+		add_child(pnm)
+		_banners.append(pnm)
+		# Collision so fighters do not walk through the canvas.
+		var body := StaticBody3D.new()
+		var cs := CollisionShape3D.new()
+		var cyl := CylinderShape3D.new()
+		cyl.radius = 1.6
+		cyl.height = 2.0
+		cs.shape = cyl
+		body.position = pos + Vector3.UP
+		body.add_child(cs)
+		add_child(body)
+
+
+func _stripe_texture(a: Color, b: Color) -> ImageTexture:
+	var img := Image.create(256, 64, false, Image.FORMAT_RGB8)
+	for x in 256:
+		var c := a if (x / 16) % 2 == 0 else b
+		for y in 64:
+			var shade := 0.85 + 0.15 * sin(float(x) * 0.39)
+			var cc: Color = c * shade
+			if y < 6:
+				cc = a * 0.6  # scalloped valance band
+			img.set_pixel(x, y, cc)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+
 func _build_crowd(stand_pos: Vector3, yaw: float) -> void:
 	# Rows of painted spectators on the stand tiers: one quad per tier, a
 	# generated texture of heads, hoods and shoulders in the dye palette.
@@ -546,6 +631,19 @@ func _build_training_area() -> void:
 	# Training gear lives beside the west stand: racks, pells, a grindstone.
 	place("weapon_rack", Vector3(-8.4, 0.0, 2.6), 1.15, area, true)
 	place("weapon_rack", Vector3(-9.2, 0.0, 4.4), 1.5, area, true)
+	# The arsenal on display: real weapons leaning in the racks.
+	var display := [["war_spear", Vector3(-8.2, 0.0, 2.1)], ["longsword", Vector3(-8.55, 0.0, 2.95)],
+		["bearded_axe", Vector3(-9.05, 0.0, 4.0)], ["flanged_mace", Vector3(-9.3, 0.0, 4.8)]]
+	for d in display:
+		var sc := WeaponCatalog.mesh_scene(d[0])
+		if sc == null:
+			continue
+		var w: Node3D = sc.instantiate()
+		WeaponLook.dress(w)
+		area.add_child(w)
+		# Point up, leaning back against the rack.
+		w.position = d[1] + Vector3.UP * 0.18
+		w.rotation = Vector3(-PI / 2 + 0.22, 1.2, 0.0)
 	place("training_dummy", Vector3(-7.6, 0.0, 6.4), 0.0, area, true)
 	place("training_dummy", Vector3(-8.9, 0.0, 7.4), 0.5, area, true)
 	place("grindstone", Vector3(-9.6, 0.0, 0.8), 0.8, area)
