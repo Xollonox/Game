@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/wood_diff.jpg-6226f91b3d37c5b3bba4e340b4ebd53
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

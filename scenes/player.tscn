@@ -1,7 +1,6 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1"]
-[ext_resource type="PackedScene" path="res://assets/models/characters/armored/universal_character_armored.glb" id="2"]
-[node name="Player" type="Node3D"]
-script=ExtResource("1")
-[node name="Model" parent="." instance=ExtResource("2")]
+
+[node name="Player" type="Node3D" groups=["fighters"]]
+script = ExtResource("1")

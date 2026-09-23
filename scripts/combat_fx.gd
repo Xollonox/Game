@@ -38,14 +38,25 @@ const CLASH_SOUNDS := [
 	"res://assets/sfx/kenney/metal/impactPlate_heavy_001.ogg",
 	"res://assets/sfx/kenney/metal/impactPlate_heavy_002.ogg",
 ]
+## Packed earth and straw underfoot (Kenney RPG Audio, CC0).
 const FOOTSTEP_SOUNDS := [
-	"res://assets/sfx/kenney/footsteps/footstep_concrete_000.ogg",
-	"res://assets/sfx/kenney/footsteps/footstep_concrete_001.ogg",
-	"res://assets/sfx/kenney/footsteps/footstep_concrete_002.ogg",
-	"res://assets/sfx/kenney/footsteps/footstep_concrete_003.ogg",
+	"res://assets/sfx/kenney/rpg/footstep00.ogg", "res://assets/sfx/kenney/rpg/footstep01.ogg",
+	"res://assets/sfx/kenney/rpg/footstep02.ogg", "res://assets/sfx/kenney/rpg/footstep03.ogg",
+	"res://assets/sfx/kenney/rpg/footstep04.ogg", "res://assets/sfx/kenney/rpg/footstep05.ogg",
+	"res://assets/sfx/kenney/rpg/footstep06.ogg", "res://assets/sfx/kenney/rpg/footstep07.ogg",
 ]
+const CUT_SOUNDS := ["res://assets/sfx/kenney/rpg/knifeSlice.ogg", "res://assets/sfx/kenney/rpg/knifeSlice2.ogg"]
+const CLOTH_SOUNDS := [
+	"res://assets/sfx/kenney/rpg/cloth1.ogg", "res://assets/sfx/kenney/rpg/cloth2.ogg",
+	"res://assets/sfx/kenney/rpg/cloth3.ogg", "res://assets/sfx/kenney/rpg/cloth4.ogg",
+]
+const CHOP_SOUND := "res://assets/sfx/kenney/rpg/chop.ogg"
 
 var _bursts: Array[CPUParticles3D] = []
+var _sparks: Array[CPUParticles3D] = []
+var _dust: Array[CPUParticles3D] = []
+var _next_dust := 0
+var _next_spark := 0
 var _next_burst := 0
 var _splats: Array[MeshInstance3D] = []
 var _splat_expiry: Array[float] = []
@@ -57,6 +68,9 @@ var _hit_streams: Array[AudioStream] = []
 var _swish_streams: Array[AudioStream] = []
 var _clash_streams: Array[AudioStream] = []
 var _footstep_streams: Array[AudioStream] = []
+var _cut_streams: Array[AudioStream] = []
+var _cloth_streams: Array[AudioStream] = []
+var _chop: AudioStream
 ## Public so the arena can honour the player's Blood setting.
 var blood_enabled := true
 ## Public so the arena can honour the Quality setting (particle budgets).
@@ -74,6 +88,8 @@ func _ready() -> void:
 	blood_enabled = not OS.get_cmdline_user_args().has("--noblood")
 	var blood_tex := _make_blood_texture()
 	_build_bursts()
+	_build_sparks()
+	_build_dust()
 	_build_splats(blood_tex)
 	_build_audio()
 	for path in HIT_SOUNDS:
@@ -85,6 +101,12 @@ func _ready() -> void:
 		if ResourceLoader.exists(path): _clash_streams.append(load(path))
 	for path in FOOTSTEP_SOUNDS:
 		if ResourceLoader.exists(path): _footstep_streams.append(load(path))
+	for path in CUT_SOUNDS:
+		if ResourceLoader.exists(path): _cut_streams.append(load(path))
+	for path in CLOTH_SOUNDS:
+		if ResourceLoader.exists(path): _cloth_streams.append(load(path))
+	if ResourceLoader.exists(CHOP_SOUND):
+		_chop = load(CHOP_SOUND)
 
 
 func _process(_delta: float) -> void:
@@ -161,9 +183,17 @@ func play_hit(pos: Vector3, severity: float) -> void:
 ## the impact set brightened and softened — at this asset fidelity the punch
 ## set pitched past 1.5x reads as metal-on-metal, and it keeps the asset ledger
 ## unchanged.
-func play_clash(pos: Vector3, intensity: float) -> void:
+func play_clash(pos: Vector3, intensity: float, wooden := false) -> void:
 	if _clash_streams.is_empty(): return
 	var pl := _take_player()
+	if wooden and not _hit_streams.is_empty():
+		# Steel into a shield board or a haft: a dull knock, not a ring.
+		pl.stream = _hit_streams[_rng.randi() % _hit_streams.size()]
+		pl.global_position = pos
+		pl.pitch_scale = lerpf(0.9, 0.7, clampf(intensity, 0.0, 1.0)) * _rng.randf_range(0.95, 1.05)
+		pl.volume_db = lerpf(-10.0, -1.0, clampf(intensity, 0.0, 1.0))
+		pl.play()
+		return
 	pl.stream = _clash_streams[_rng.randi() % _clash_streams.size()]
 	pl.global_position = pos
 	pl.pitch_scale = lerpf(1.05, 0.82, clampf(intensity, 0.0, 1.0)) * _rng.randf_range(0.96, 1.04)
@@ -171,7 +201,7 @@ func play_clash(pos: Vector3, intensity: float) -> void:
 	pl.play()
 
 
-func play_footstep(pos: Vector3) -> void:
+func play_footstep(pos: Vector3, worn_weight := 0.0) -> void:
 	if _footstep_streams.is_empty(): return
 	var pl := _take_player()
 	pl.stream = _footstep_streams[_rng.randi() % _footstep_streams.size()]
@@ -182,13 +212,141 @@ func play_footstep(pos: Vector3) -> void:
 	# Armour layer: a fighter in plate is never silent. One in three steps also
 	# rings a quiet plate impact, pitched out of the clash set — same asset
 	# ledger, and it is what makes the fighters read as armoured.
-	if not _clash_streams.is_empty() and _rng.randf() < 0.34:
+	if not _clash_streams.is_empty() and worn_weight > 12.0 and _rng.randf() < clampf(worn_weight / 45.0, 0.2, 0.8):
 		var metal := _take_player()
 		metal.stream = _clash_streams[_rng.randi() % _clash_streams.size()]
 		metal.global_position = pos
 		metal.pitch_scale = _rng.randf_range(1.35, 1.6)
-		metal.volume_db = -21.0
+		metal.volume_db = lerpf(-24.0, -15.0, clampf(worn_weight / 45.0, 0.0, 1.0))
 		metal.play()
+
+
+## The wound itself: a wet slice for an edge through cloth and flesh, a
+## deep chop for an axe or a heavy blow.
+func play_wound(pos: Vector3, kind: String, severity: float) -> void:
+	var stream: AudioStream = null
+	if kind == "cut" and not _cut_streams.is_empty():
+		stream = _cut_streams[_rng.randi() % _cut_streams.size()]
+	elif _chop and (kind == "blunt" or severity > 0.7):
+		stream = _chop
+	if stream == null:
+		return
+	var pl := _take_player()
+	pl.stream = stream
+	pl.global_position = pos
+	pl.pitch_scale = _rng.randf_range(0.85, 1.05) * lerpf(1.1, 0.85, severity)
+	pl.volume_db = lerpf(-10.0, -1.0, severity)
+	pl.play()
+
+
+## Body movement: cloth and leather creak on every committed attack.
+func play_cloth(pos: Vector3, weight: float) -> void:
+	if _cloth_streams.is_empty():
+		return
+	var pl := _take_player()
+	pl.stream = _cloth_streams[_rng.randi() % _cloth_streams.size()]
+	pl.global_position = pos
+	pl.pitch_scale = _rng.randf_range(0.9, 1.1)
+	pl.volume_db = -16.0 + clampf(weight / 10.0, 0.0, 4.0)
+	pl.play()
+
+
+## Steel struck on steel: a spray of sparks, a hard ring, a short shake.
+func armor_impact(pos: Vector3, dir: Vector3, intensity: float, layer: String) -> void:
+	var metal := layer.begins_with("A_") or layer.begins_with("H_")
+	if metal and layer != "A_Gambeson" and layer != "H_PaddedCoif":
+		sparks(pos, dir, intensity)
+		play_clash(pos, clampf(intensity * 1.2, 0.2, 1.0))
+	else:
+		play_hit(pos, intensity * 0.5)
+
+
+## A body hitting the ground: a low ring of dust kicked out of the lists.
+func dust(pos: Vector3, intensity: float) -> void:
+	if _dust.is_empty():
+		return
+	var p := _dust[_next_dust]
+	_next_dust = (_next_dust + 1) % _dust.size()
+	p.global_position = Vector3(pos.x, 0.05, pos.z)
+	p.amount = int(lerpf(10.0, 28.0, intensity))
+	p.restart()
+	p.emitting = true
+
+
+func _build_dust() -> void:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.vertex_color_use_as_albedo = true
+	mat.albedo_texture = WorldBuilder.soft_dot()
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.5, 0.5)
+	quad.material = mat
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(0.62, 0.55, 0.45, 0.45))
+	ramp.set_color(1, Color(0.62, 0.55, 0.45, 0.0))
+	for i in 4:
+		var p := CPUParticles3D.new()
+		p.emitting = false
+		p.one_shot = true
+		p.explosiveness = 0.9
+		p.lifetime = 1.6
+		p.mesh = quad
+		p.direction = Vector3.UP
+		p.spread = 80.0
+		p.initial_velocity_min = 0.6
+		p.initial_velocity_max = 1.8
+		p.gravity = Vector3(0, 0.25, 0)
+		p.damping_min = 1.5
+		p.damping_max = 2.5
+		p.scale_amount_min = 0.6
+		p.scale_amount_max = 1.8
+		p.color_ramp = ramp
+		p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+		p.emission_sphere_radius = 0.35
+		add_child(p)
+		_dust.append(p)
+
+
+func sparks(pos: Vector3, dir: Vector3, intensity: float) -> void:
+	if _sparks.is_empty():
+		return
+	var p := _sparks[_next_spark]
+	_next_spark = (_next_spark + 1) % _sparks.size()
+	p.global_position = pos
+	p.direction = (-dir + Vector3.UP * 0.4).normalized()
+	p.amount = int(lerpf(8.0, 26.0, intensity) * (1.0 if quality_high else 0.5))
+	p.restart()
+	p.emitting = true
+
+
+func _build_sparks() -> void:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(1.0, 0.72, 0.35)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.6, 0.25)
+	mat.emission_energy_multiplier = 3.0
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.012, 0.035)
+	quad.material = mat
+	for i in 6:
+		var p := CPUParticles3D.new()
+		p.emitting = false
+		p.one_shot = true
+		p.explosiveness = 0.95
+		p.lifetime = 0.35
+		p.mesh = quad
+		p.spread = 55.0
+		p.initial_velocity_min = 2.5
+		p.initial_velocity_max = 6.5
+		p.gravity = Vector3(0, -9.8, 0)
+		p.scale_amount_min = 0.6
+		p.scale_amount_max = 1.3
+		add_child(p)
+		_sparks.append(p)
 
 
 ## Drops Engine.time_scale for [param duration] real seconds. Re-entrant: a

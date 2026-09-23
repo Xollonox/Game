@@ -1,9 +1,6 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemy.gd" id="1"]
-[ext_resource type="PackedScene" path="res://assets/models/characters/armored/universal_character_armored.glb" id="2"]
-[ext_resource type="PackedScene" path="res://scenes/sword_enemy.tscn" id="3"]
-[node name="Dummy" type="Node3D" groups=["hittable"]]
-script=ExtResource("1")
-sword_scene=ExtResource("3")
-[node name="Model" parent="." instance=ExtResource("2")]
+
+[node name="Fighter" type="Node3D" groups=["hittable", "fighters"]]
+script = ExtResource("1")

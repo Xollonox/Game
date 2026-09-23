@@ -17,8 +17,16 @@ var _frames := 0
 
 
 func _ready() -> void:
+	# The heaviest bout: the 1v6 Grand Melee, fight started immediately.
+	GameState.new_run()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--bout="):
+			GameState.run["bout"] = int(a.substr(7))
+	if not "--bout=" in " ".join(OS.get_cmdline_user_args()):
+		GameState.run["bout"] = Tournament.bout_count() - 1
 	var arena: Node3D = ARENA.instantiate()
 	add_child(arena)
+	arena._start_fight.call_deferred()
 	if OS.get_cmdline_user_args().has("--noworld"):
 		var world := arena.get_node_or_null("World")
 		if world:

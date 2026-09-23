@@ -29,18 +29,18 @@ func _process(delta: float) -> void:
 	_time += delta
 	# A slow arc across the yard toward the gatehouse, with a breath of
 	# handheld bob so the shot never reads as a locked-off render.
-	var a := -0.72 + sin(_time * 0.045) * 0.34
-	var r := 15.8 + sin(_time * 0.09) * 0.5
-	_camera.position = Vector3(sin(a) * r, 3.1 + sin(_time * 0.31) * 0.06, -cos(a) * r)
-	_camera.look_at(Vector3(0.0, 2.3, -9.0))
+	# Inside the yard, drifting along the lists past two men sparring, the
+	# gatehouse behind them.
+	var a := 2.6 + sin(_time * 0.05) * 0.28
+	var r := 7.4 + sin(_time * 0.09) * 0.4
+	_camera.position = Vector3(sin(a) * r, 2.0 + sin(_time * 0.31) * 0.05, -cos(a) * r)
+	_camera.look_at(Vector3(-2.2, 1.3, -1.8))
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_accept") and not _busy:
 		if _open_panel != null:
 			_close_panel()
-		else:
-			_enter_yard()
 
 
 # ---------------------------------------------------------------- world -----
@@ -83,10 +83,33 @@ func _build_world() -> void:
 	_world.set_script(load("res://scripts/world_builder.gd"))
 	add_child(_world)
 
+	_spawn_sparring()
+
 	_camera = Camera3D.new()
 	_camera.fov = 52.0
 	_camera.position = Vector3(-10.0, 3.1, 13.0)
 	add_child(_camera)
+
+
+## Two fighters sparring in the ring behind the title — the menu shows the
+## game, not a picture of it.
+func _spawn_sparring() -> void:
+	var ground := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	cs.shape = WorldBoundaryShape3D.new()
+	ground.add_child(cs)
+	add_child(ground)
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var scene := load("res://scenes/dummy.tscn")
+	for i in 2:
+		var f: Enemy = scene.instantiate()
+		f.spec = Armory.roll_fighter(3 + i, rng)
+		f.spec["ai"]["aggression"] = 0.6
+		f.team = 10 + i
+		f.position = Vector3(1.4 + (i * 2 - 1) * 1.5, 0, -2.4)
+		f.set_engage_delay(1.5 + i)
+		add_child(f)
 
 
 # ------------------------------------------------------------------- ui -----
@@ -127,7 +150,7 @@ func _build_ui() -> void:
 	rule_row.add_child(UITheme.rule(340.0, UITheme.BRASS))
 
 	var sub := Label.new()
-	sub.text = "A physics-driven medieval duel"
+	sub.text = "Seventeen bouts, one body, no second chances above ground"
 	sub.add_theme_font_override("font", UITheme.body())
 	sub.add_theme_font_size_override("font_size", 21)
 	sub.add_theme_color_override("font_color", UITheme.INK_DIM)
@@ -135,10 +158,41 @@ func _build_ui() -> void:
 
 	column.add_child(_spacer(46.0))
 
-	var play := _button("Enter the Yard", true)
-	play.pressed.connect(_enter_yard)
-	column.add_child(play)
-	column.add_child(_spacer(10.0))
+	if GameState.has_run():
+		var run := GameState.run
+		var in_hollow: bool = run.get("mode", "arena") == "hollow"
+		var cont := _button("Descend Again" if in_hollow else "Continue the Tournament", true)
+		cont.pressed.connect(func(): _enter("res://scenes/hollow.tscn" if in_hollow else ARENA_SCENE))
+		column.add_child(cont)
+		var st := Label.new()
+		st.text = ("In the Hollow" if in_hollow else "Bout %d of %d · %s" % [int(run.get("bout", 0)) + 1,
+			Tournament.bout_count(), Tournament.standing(int(run.get("bout", 0)))]) + " · %d renown" % int(run.get("renown", 0))
+		st.add_theme_font_size_override("font_size", 16)
+		st.add_theme_color_override("font_color", UITheme.INK_DIM)
+		st.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+		st.add_theme_constant_override("outline_size", 4)
+		column.add_child(st)
+		column.add_child(_spacer(10.0))
+		if not in_hollow:
+			var shop := _button("The Armourer's Tent", false)
+			shop.pressed.connect(_open_shop)
+			column.add_child(shop)
+			column.add_child(_spacer(10.0))
+		var fresh := _button("Begin a New Life", false)
+		fresh.pressed.connect(func():
+			GameState.new_run()
+			_enter(ARENA_SCENE))
+		column.add_child(fresh)
+		column.add_child(_spacer(10.0))
+		cont.grab_focus.call_deferred()
+	else:
+		var play := _button("Enter the Tournament", true)
+		play.pressed.connect(func():
+			GameState.new_run()
+			_enter(ARENA_SCENE))
+		column.add_child(play)
+		column.add_child(_spacer(10.0))
+		play.grab_focus.call_deferred()
 
 	var how := _button("How to Fight", false)
 	how.pressed.connect(func(): _show_panel(_controls_panel()))
@@ -155,7 +209,7 @@ func _build_ui() -> void:
 	version.offset_top = -40.0
 	version.offset_right = 300.0
 	version.offset_bottom = -18.0
-	version.text = "v0.2 · Godot 4.7"
+	version.text = "v0.3 · Godot 4.7"
 	version.add_theme_font_size_override("font_size", 14)
 	version.add_theme_color_override("font_color", UITheme.INK_FAINT)
 	root.add_child(version)
@@ -187,9 +241,15 @@ func _controls_panel() -> Control:
 	var rows := [
 		["Move", "W A S D  ·  joystick"],
 		["Sprint", "Shift"],
-		["Swing", "Space  ·  left click  ·  SWING"],
-		["Camera", "right-drag  ·  Q / E  ·  wheel"],
-		["Restart", "R"],
+		["Cut", "Space  ·  left click  ·  CUT"],
+		["Line of the cut", "hold forward: from above · sideways: level · back: rising"],
+		["Thrust", "F  ·  middle click  ·  THRUST"],
+		["Guard", "hold C  ·  right mouse  ·  GUARD"],
+		["Heavy blow", "cut while sprinting"],
+		["Step back", "X"],
+		["Yield", "hold G when badly hurt: lose the bout, keep your life"],
+		["Mercy", "a beaten man may yield — spare him and he owes the Hollow nothing"],
+		["Camera", "Q / E  ·  middle-drag  ·  wheel  ·  Tab: lock on/off"],
 		["Pause", "Esc"],
 	]
 	for r in rows:
@@ -269,6 +329,17 @@ func _panel(title_text: String, content: Control) -> Control:
 	return holder
 
 
+func _open_shop() -> void:
+	AudioDirector.ui_click()
+	var layer := CanvasLayer.new()
+	layer.layer = 20
+	add_child(layer)
+	var ui := ShopUI.open(layer, GameState.run, Tournament.rank_for_bout(int(GameState.run.get("bout", 0))))
+	ui.closed.connect(func():
+		layer.queue_free()
+		get_tree().reload_current_scene())
+
+
 func _show_panel(panel: Control) -> void:
 	_close_panel()
 	_open_panel = panel
@@ -287,6 +358,12 @@ func _close_panel() -> void:
 
 
 func _enter_yard() -> void:
+	if not GameState.has_run():
+		GameState.new_run()
+	_enter(ARENA_SCENE)
+
+
+func _enter(path: String) -> void:
 	if _busy:
 		return
 	_busy = true
@@ -294,7 +371,7 @@ func _enter_yard() -> void:
 	var t := create_tween()
 	t.tween_property(_fade, "color:a", 1.0, 0.55)
 	await t.finished
-	get_tree().change_scene_to_file(ARENA_SCENE)
+	get_tree().change_scene_to_file(path)
 
 
 # -------------------------------------------------------------- widgets -----

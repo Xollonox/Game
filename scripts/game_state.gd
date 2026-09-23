@@ -20,6 +20,7 @@ var blood := true
 
 func _ready() -> void:
 	load_settings()
+	load_run()
 
 
 func load_settings() -> void:
@@ -46,3 +47,120 @@ func save_settings() -> void:
 func apply() -> void:
 	settings_changed.emit()
 	save_settings()
+
+
+# ------------------------------------------------------------------ run -----
+## The persistent run: who you are, how far you have climbed, what you carry,
+## and whose blood is on your hands (the Hollow remembers). Saved to
+## user://run.cfg after every bout so a closed tab resumes where it left off.
+
+const RUN_PATH := "user://run.cfg"
+
+var run: Dictionary = {}
+
+
+func has_run() -> bool:
+	return not run.is_empty() and not run.get("over", false)
+
+
+func new_run() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	run = {
+		"seed": rng.randi(),
+		"bout": 0,
+		"renown": 0,
+		"player": Armory.starting_kit(rng),
+		"slain": [],
+		"slain_total": 0,
+		"hollow_debt": [],
+		"returns": 0,
+		"best_bout": 0,
+		"over": false,
+		"mode": "arena",
+		"purse": Shop.STARTING_PURSE,
+	}
+	Shop.ensure(run)
+	save_run()
+
+
+func load_run() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(RUN_PATH) != OK:
+		return
+	var r = cfg.get_value("run", "data", {})
+	if r is Dictionary:
+		run = r
+		if not run.is_empty():
+			Shop.ensure(run)
+
+
+func save_run() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("run", "data", run)
+	cfg.save(RUN_PATH)
+
+
+func player_spec() -> Dictionary:
+	var p: Dictionary = (run.get("player", {}) as Dictionary).duplicate(true)
+	p["garments"] = Shop.garments_for(run)
+	return p
+
+
+## A bout was won: renown and coin, record the fallen, advance.
+func bout_won(renown_gain: int, fallen: Array, coin := 0) -> void:
+	run["renown"] = int(run.get("renown", 0)) + renown_gain
+	run["purse"] = int(run.get("purse", 0)) + coin
+	run["bout"] = int(run.get("bout", 0)) + 1
+	run["best_bout"] = maxi(int(run.get("best_bout", 0)), int(run["bout"]))
+	var slain: Array = run.get("slain", [])
+	for s in fallen:
+		slain.append(s)
+	# The Hollow only keeps the most recent dead: a bounded, readable debt.
+	while slain.size() > 8:
+		slain.pop_front()
+	run["slain"] = slain
+	run["slain_total"] = int(run.get("slain_total", 0)) + fallen.size()
+	save_run()
+
+
+func set_weapon(weapon_id: String, shield: bool) -> void:
+	Shop.ensure(run)
+	if not weapon_id in (run["owned"] as Array):
+		(run["owned"] as Array).append(weapon_id)
+	var p: Dictionary = run.get("player", {})
+	p["weapon"] = weapon_id
+	p["shield"] = shield
+	run["player"] = p
+	save_run()
+
+
+## Death in the arena: the dead you made wait below.
+func enter_hollow() -> void:
+	var slain: Array = run.get("slain", [])
+	var debt := slain.slice(maxi(0, slain.size() - 5))
+	if debt.size() < 2:
+		# Even the innocent are met by something.
+		var rng := RandomNumberGenerator.new()
+		rng.randomize()
+		while debt.size() < 2:
+			debt.append(Armory.roll_fighter(maxi(0, Tournament.rank_for_bout(int(run.get("bout", 0))) - 1), rng))
+	run["hollow_debt"] = debt
+	run["mode"] = "hollow"
+	save_run()
+
+
+## The debt is paid: back to the living, at a price in renown.
+func return_from_hollow() -> void:
+	run["mode"] = "arena"
+	run["returns"] = int(run.get("returns", 0)) + 1
+	run["renown"] = maxi(0, int(run.get("renown", 0)) - 15)
+	run["slain"] = []
+	run["hollow_debt"] = []
+	save_run()
+
+
+func end_run() -> void:
+	run["over"] = true
+	run["mode"] = "over"
+	save_run()

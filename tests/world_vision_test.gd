@@ -54,11 +54,14 @@ func _to_arena() -> void:
 	_menu.queue_free()
 	_arena = ARENA.instantiate()
 	add_child(_arena)
+	# Skip the herald and take manual control of the framing.
+	_arena._start_fight.call_deferred()
 
 
 func _view(yaw: float, dist: float) -> void:
 	_arena._cam_yaw = yaw
 	_arena._cam_dist = dist
+	_arena._cam_manual = 999.0
 
 
 func _process(delta: float) -> void:

@@ -76,6 +76,36 @@ static func severity_for(speed: float, rig_name: String) -> float:
 	return lerpf(0.1, 0.5, clampf(effective / HEAVY_SPEED, 0.0, 1.0))
 
 
+## Location weighting for the wound model: head and torso blows are the
+## dangerous ones, a cut hand is not a cut throat.
+const _WOUND_WEIGHT := {
+	&"Head": 1.9, &"Chest": 1.15, &"Spine": 1.05, &"Hips": 0.95,
+	&"UpperArm_L": 0.6, &"UpperArm_R": 0.6, &"LowerArm_L": 0.45, &"LowerArm_R": 0.45,
+	&"Hand_L": 0.3, &"Hand_R": 0.3, &"UpperLeg_L": 0.75, &"UpperLeg_R": 0.75,
+	&"LowerLeg_L": 0.5, &"LowerLeg_R": 0.5, &"Foot_L": 0.3, &"Foot_R": 0.3,
+}
+
+
+static func location_weight(rig_name: String) -> float:
+	return float(_WOUND_WEIGHT.get(StringName(rig_name), 0.7))
+
+
+## Knock tier from delivered momentum (speed x mass x weapon stagger /
+## target stability) — how hard the blow shoves the rig, independent of how
+## much it wounds. An armoured man takes a sword cut without losing his feet;
+## the same man is rocked by a mace.
+const HEAVY_FORCE := 8.5
+const CRUSHING_FORCE := 17.0
+
+
+static func profile_for_force(force: float) -> ImpactProfile:
+	if force >= CRUSHING_FORCE:
+		return crushing_blow()
+	elif force >= HEAVY_FORCE:
+		return heavy_swing()
+	return light_swing()
+
+
 static func _make(pname: StringName, impulse: float, transfer: float, upward: float,
 		ragdoll_prob: float, reduction: float, spread: int, recovery: float) -> ImpactProfile:
 	var p := ImpactProfile.new()

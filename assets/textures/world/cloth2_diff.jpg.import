@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/cloth2_diff.jpg-36f2adc44f87a3acf7df7e13ae2a6
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

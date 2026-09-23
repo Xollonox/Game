@@ -1,0 +1,39 @@
+{
+ "name": "Heater Shield",
+ "class": "shield",
+ "hands": 1,
+ "damage": "blunt",
+ "tip": [
+  -0.06,
+  0.0,
+  -0.384
+ ],
+ "length": 0.64,
+ "pommel": [
+  0.0,
+  0.0,
+  -0.0
+ ],
+ "id": "heater_shield",
+ "mass": 3.2,
+ "com": [
+  -0.063,
+  0.0,
+  -0.0739
+ ],
+ "boxes": [
+  {
+   "center": [
+    -0.06,
+    0.0,
+    -0.1
+   ],
+   "size": [
+    0.05,
+    0.475,
+    0.576
+   ],
+   "part": "shield"
+  }
+ ]
+}

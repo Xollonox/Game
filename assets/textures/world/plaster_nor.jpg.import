@@ -15,7 +15,7 @@ dest_files=["res://.godot/imported/plaster_nor.jpg-50b66a5744dedca2a15bf2b2c58fe
 
 [params]
 
-compress/mode=0
+compress/mode=4
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
