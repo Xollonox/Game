@@ -351,6 +351,17 @@ def sword_moves(rig):
                  lhand=((-0.1, 0.3, 1.25), (0.3, 0.8, 0.3), (0, 0, 1)), elbow_r=(0.6, 0.0, 1.2))
     guard2 = pose(guard, pelvis=(0, 0, -0.08))
     acts.append(rig.author("Guard_High", [(0, guard), (0.8, guard2), (1.6, guard)]))
+    # Low parry: point down across the lead leg (a single-sword Nebenhut).
+    low = pose(S, pelvis=(0, -0.03, -0.1), hips=(12, 6, 0), torso=(-8, 10, 0),
+               weapon=((0.1, 0.35, 0.95), (-0.55, 0.35, -0.76), (-0.3, 0.9, 0.1)), elbow_r=(0.5, -0.1, 0.9))
+    acts.append(rig.author("Guard_Low", [(0, low), (0.8, pose(low, pelvis=(0, -0.03, -0.12))), (1.6, low)]))
+    # Side guards: blade vertical, edge out, covering the flank.
+    sl = pose(S, hips=(-12, 0, 0), torso=(-20, 4, 0),
+              weapon=((-0.12, 0.34, 1.12), (-0.1, 0.25, 0.96), (-1, 0, 0)), elbow_r=(0.2, 0.1, 1.0))
+    acts.append(rig.author("Guard_Side_L", [(0, sl), (0.8, pose(sl, pelvis=(0, 0, -0.08))), (1.6, sl)]))
+    sr = pose(S, hips=(28, 0, 0), torso=(18, 4, 0),
+              weapon=((0.38, 0.22, 1.12), (0.15, 0.25, 0.96), (1, 0, 0)), elbow_r=(0.7, -0.1, 1.0))
+    acts.append(rig.author("Guard_Side_R", [(0, sr), (0.8, pose(sr, pelvis=(0, 0, -0.08))), (1.6, sr)]))
 
     # Oberhau (Zornhau): from the right shoulder, diagonal down through the
     # opponent's left shoulder, with a passing step of the right foot.
@@ -475,6 +486,15 @@ def longsword_moves(rig, grip2):
                elbow_r=(0.6, 0.0, 1.4), elbow_l=(-0.3, 0.0, 1.2))
     guard = pose(S, weapon=((0.12, 0.32, 1.52), (-0.95, 0.25, 0.2), (0, 0.3, 1)), elbow_r=(0.6, 0, 1.3))
     acts.append(rig.author("Guard_Longsword_High", [(0, guard), (0.8, pose(guard, pelvis=(0, 0, -0.08))), (1.6, guard)],
+                           grip2=grip2))
+    lowl = pose(S, pelvis=(0, -0.03, -0.1), weapon=((0.08, 0.36, 1.0), (-0.5, 0.4, -0.76), (-0.3, 0.9, 0.1)))
+    acts.append(rig.author("Guard_Longsword_Low", [(0, lowl), (0.8, pose(lowl, pelvis=(0, -0.03, -0.12))), (1.6, lowl)],
+                           grip2=grip2))
+    sidel = pose(S, hips=(-10, 0, 0), torso=(-18, 4, 0), weapon=((-0.08, 0.36, 1.15), (-0.1, 0.2, 0.97), (-1, 0, 0)))
+    acts.append(rig.author("Guard_Longsword_Side_L", [(0, sidel), (0.8, pose(sidel, pelvis=(0, 0, -0.08))), (1.6, sidel)],
+                           grip2=grip2))
+    sider = pose(S, hips=(26, 0, 0), torso=(16, 4, 0), weapon=((0.32, 0.26, 1.15), (0.12, 0.2, 0.97), (1, 0, 0)))
+    acts.append(rig.author("Guard_Longsword_Side_R", [(0, sider), (0.8, pose(sider, pelvis=(0, 0, -0.08))), (1.6, sider)],
                            grip2=grip2))
     hit = pose(S, pelvis=(0, 0.22, -0.1), hips=(-14, 6, 0), torso=(-16, 14, 0),
                weapon=((0.0, 0.52, 1.28), (-0.3, 0.88, 0.1), (-0.3, 0.1, -0.95)), foot_r=(0.06, 0.3, 10))

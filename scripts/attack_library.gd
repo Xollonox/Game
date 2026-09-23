@@ -134,14 +134,19 @@ static func stance_candidates(family: String, has_shield: bool) -> Array:
 	return ["Stance_Sword", "Sword_Idle"]
 
 
-static func guard_anim(family: String, has_shield: bool, anim: AnimationPlayer) -> String:
+static func guard_anim(family: String, has_shield: bool, anim: AnimationPlayer, line := "") -> String:
 	var cands := ["Guard_Shield", "Shield_Idle"] if has_shield else []
+	var sfx: String = {"low": "_Low", "left": "_Side_L", "right": "_Side_R"}.get(line, "")
 	match family:
 		"longsword":
+			if sfx != "":
+				cands.append("Guard_Longsword" + sfx)
 			cands += ["Guard_Longsword_High", "Guard_High"]
 		"spear":
 			cands += ["Guard_Spear_High", "Guard_High"]
 		_:
+			if sfx != "":
+				cands.append("Guard" + sfx)
 			cands += ["Guard_High"]
 	cands.append("Sword_Block")
 	for c in cands:

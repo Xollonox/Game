@@ -26,7 +26,8 @@ const LOOPING := ["Idle", "Walk", "Jog", "Sprint", "Sword_Idle", "Crouch_Idle", 
 	"Sitting_Idle", "Shield_Idle", "Idle_FoldArms", "Zombie_Idle", "Zombie_Walk", "Guard_High", "Guard_Mid",
 	"Guard_Low", "Guard_Longsword", "Guard_Spear", "Stance_Idle", "Stance_Idle_2", "Walk_Guard", "Walk_Back",
 	"Strafe_L", "Strafe_R", "Idle_Wounded", "Walk_Wounded", "Cheer", "Stance_Sword", "Stance_Blunt",
-	"Stance_Dagger", "Stance_Shield", "Guard_Shield", "Guard_Longsword_High", "Guard_Spear_High"]
+	"Stance_Dagger", "Stance_Shield", "Guard_Shield", "Guard_Longsword_High", "Guard_Spear_High", "Guard_Low",
+	"Guard_Side_L", "Guard_Side_R", "Guard_Longsword_Low", "Guard_Longsword_Side_L", "Guard_Longsword_Side_R"]
 ## Speed (m/s) the guarded gait clips were authored for (melee_anims.locomotion).
 const GAIT_SPEED := 1.6
 
@@ -369,13 +370,25 @@ func swing() -> bool:
 	return attack("cut")
 
 
-func set_guard(on: bool) -> void:
+## Holding a guard. [param threat] (a hostile weapon) moves the guard to
+## where that blade actually is: high, low, or to the flank it is coming from.
+func set_guard(on: bool, threat: PhysicsWeapon = null) -> void:
 	if _dead:
 		return
-	if on and not _guarding:
+	if on:
 		var wid: String = spec.get("weapon", "")
 		var fam: String = WeaponCatalog.get_def(wid).get("attacks", "sword")
-		_guard_anim = AttackLibrary.guard_anim(fam, spec.get("shield", false), anim)
+		var line := ""
+		if threat and is_instance_valid(threat):
+			var local := global_transform.affine_inverse() * threat.get_tip_position()
+			if local.y < 0.95:
+				line = "low"
+			elif absf(local.x) > 0.45 and local.y < 1.55:
+				# The actor faces +Z: positive local x is his left.
+				line = "left" if local.x > 0.0 else "right"
+			else:
+				line = "high"
+		_guard_anim = AttackLibrary.guard_anim(fam, spec.get("shield", false), anim, line)
 	_guarding = on
 
 

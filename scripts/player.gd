@@ -31,7 +31,8 @@ func _physics_process(delta: float) -> void:
 			lock_target.global_position.z - global_position.z)
 	else:
 		face_dir = Vector3.ZERO
-	set_guard(Input.is_action_pressed("guard") and not sprinting)
+	var threat: PhysicsWeapon = lock_target.weapon if lock_target else null
+	set_guard(Input.is_action_pressed("guard") and not sprinting, threat)
 	super._physics_process(delta)
 
 	if Input.is_action_just_pressed("attack"):

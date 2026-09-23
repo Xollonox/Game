@@ -164,7 +164,7 @@ func _tick_ai(delta: float) -> void:
 					_timer = randf_range(0.2, 0.9) * (1.3 - _aggr)
 					_strafe = 1.0 if randf() < 0.5 else -1.0
 		State.GUARD:
-			set_guard(true)
+			set_guard(true, target.weapon)
 			move_dir = -dir * 0.2
 			if _timer <= 0.0:
 				set_guard(false)
