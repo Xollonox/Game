@@ -35,6 +35,10 @@ var _chain_consistency: float = 1.0
 var _feed_forward: float = 1.0
 var _settle_timer: float = 0.0
 var _default_recovery_rate: float = 0.3
+## Bare Steel: rig name -> 0..1 lasting impairment from wounds (InjurySystem).
+var impairment: Dictionary = {}
+## Bare Steel: rig names cut off the body (Dismemberment): never driven again.
+var severed: Dictionary = {}
 var _target_overrides: Dictionary = {}  # rig_name → Transform3D (temporary blend targets)
 var _pin_injury_modifiers: Dictionary = {}  # rig_name → float (0.0-1.0, reduces pin strength)
 var _tuning: RagdollTuning
@@ -195,12 +199,17 @@ func _physics_process(delta: float) -> void:
 	# Parent-first: a child's linear command reads its parent's velocities as
 	# written THIS tick (see the chain block below).
 	for rig_name: String in _order:
+		if severed.has(rig_name):
+			continue  # Bare Steel: a severed limb is no longer driven
 		var state: Dictionary = _bones[rig_name]
 		var body: RigidBody3D = state.body
 
 		# Strength recovery (only when hit-reactive mode is active)
 		if _active:
-			state.strength = move_toward(state.strength, state.base_strength, recovery_rate * delta)
+			# Bare Steel: a wounded region never recovers past what the wound
+			# allows (impairment 0..1 from InjurySystem; 1 = useless).
+			var cap: float = state.base_strength * (1.0 - float(impairment.get(rig_name, 0.0)) * 0.85)
+			state.strength = move_toward(state.strength, cap, recovery_rate * delta)
 		var ratio := _strength_ratio(state)
 
 		# Property updates: gravity + damping scale with strength ratio. A limp bone

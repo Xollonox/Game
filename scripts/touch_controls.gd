@@ -32,6 +32,8 @@ func _ready() -> void:
 	# Thrust and guard sit in an arc around the main button, thumb-reachable.
 	_extra_button("THRUST", "thrust", Vector2(-330.0, -150.0))
 	_extra_button("GUARD", "guard", Vector2(-190.0, -320.0))
+	_extra_button("TAKE", "interact", Vector2(-330.0, -300.0))
+	_extra_button("KICK", "kick", Vector2(-50.0, -320.0))
 	attack_button.button_down.connect(func(): Input.action_press("attack"))
 	attack_button.button_up.connect(func(): Input.action_release("attack"))
 

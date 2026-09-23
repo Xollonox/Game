@@ -15,6 +15,11 @@ var touch_controls: TouchControls
 var lock_target: KickbackActor
 var lock_enabled := true
 var _yield_hold := 0.0
+## A loose weapon within reach and in front of us, offered by the prompt.
+var pickup_candidate: PhysicsWeapon
+var armour_candidate: ArmourItem
+## The prompt text the HUD shows ("" = none).
+var interact_prompt := ""
 
 
 func _physics_process(delta: float) -> void:
@@ -40,8 +45,19 @@ func _physics_process(delta: float) -> void:
 		attack("heavy" if sprinting else "cut", {"dir": _line_from_input(input_2d)})
 	elif Input.is_action_just_pressed("thrust"):
 		attack("thrust", {"dir": "thrust"})
+	elif Input.is_action_just_pressed("kick"):
+		# Kick: forward/none = push kick to the body, back/side = low kick.
+		attack("kick", {"dir": "thrust" if input_2d.y <= 0.3 and absf(input_2d.x) < 0.5 else "low"})
 	elif Input.is_key_pressed(KEY_X) and not is_swinging():
 		evade()
+	_update_pickup_prompt()
+	if Input.is_action_just_pressed("interact"):
+		if pickup_candidate:
+			if is_instance_valid(weapon):
+				drop_weapon(-global_basis.z * 0.5)  # lay down what we hold to take the other
+			pick_up(pickup_candidate)
+		elif armour_candidate:
+			equip_armour(armour_candidate)
 	# Hold G to yield — only when badly hurt, and it costs the bout.
 	if Input.is_key_pressed(KEY_G) and health < max_health * 0.5 and not yielded:
 		_yield_hold += delta
@@ -49,6 +65,36 @@ func _physics_process(delta: float) -> void:
 			yield_fight()
 	else:
 		_yield_hold = 0.0
+
+
+## Offers the nearest loose weapon or piece of armour we are facing, within
+## a step and a reach.
+func _update_pickup_prompt() -> void:
+	pickup_candidate = null
+	armour_candidate = null
+	interact_prompt = ""
+	if _downed or is_swinging() or _pickup_target or _equip_target:
+		return
+	var best_d := 1.7
+	for n in get_tree().get_nodes_in_group(&"world_items") + get_tree().get_nodes_in_group(&"armour_items"):
+		var node := n as Node3D
+		if n is PhysicsWeapon and ((n as PhysicsWeapon).is_held() or (n as PhysicsWeapon).is_shield):
+			continue
+		var to := node.global_position - global_position
+		to.y = 0.0
+		var d := to.length()
+		if d >= best_d or (d > 0.4 and to.normalized().dot(global_basis.z) < 0.2):
+			continue
+		best_d = d
+		pickup_candidate = n as PhysicsWeapon
+		armour_candidate = n as ArmourItem
+	if pickup_candidate:
+		var verb := "Take up" if not is_instance_valid(weapon) else "Swap for"
+		interact_prompt = "E  ·  %s the %s" % [verb, WeaponCatalog.display_name(pickup_candidate.weapon_id).to_lower()]
+	elif armour_candidate:
+		var block := equip_block(armour_candidate)
+		interact_prompt = ("E  ·  Put on the %s" % armour_candidate.display_name().to_lower()) if block == "" \
+			else "The %s %s" % [armour_candidate.display_name().to_lower(), block]
 
 
 func _line_from_input(input_2d: Vector2) -> String:

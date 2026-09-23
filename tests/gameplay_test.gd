@@ -5,12 +5,13 @@ extends Node
 ##   xvfb-run -a godot --path . res://tests/gameplay_test.tscn -- [--bout=N] [--shots=/tmp/g] [--limit=40]
 
 const ARENA := preload("res://scenes/arena.tscn")
-const ENGAGE_RANGE := 1.3
-const STRIKE_RANGE := 1.9
+const ENGAGE_RANGE := 1.15
+const STRIKE_RANGE := 1.45
 var arena
 var t := 0.0
 var attack_cd := 0.0
 var retreat := 0.0
+var retreat_delay := 0.0
 var hits := 0
 var kills := 0
 var limit := 40.0
@@ -33,6 +34,7 @@ func _ready() -> void:
 		elif a.begins_with("--limit="):
 			limit = float(a.substr(8))
 	Enemy.debug_log = true
+	PhysicsWeapon.debug_stats = true
 	GameState.new_run()
 	GameState.run["bout"] = bout
 	var scene := ARENA
@@ -50,6 +52,10 @@ func _physics_process(delta: float) -> void:
 	t += delta
 	attack_cd -= delta
 	retreat -= delta
+	if retreat_delay > 0.0:
+		retreat_delay -= delta
+		if retreat_delay <= 0.0:
+			retreat = 0.4
 	if not _started:
 		if t > 2.5:
 			await _snap("intro")
@@ -75,6 +81,7 @@ func _physics_process(delta: float) -> void:
 	if p.is_dead() or kills >= _foes or t >= limit:
 		_release_all()
 		_done = true
+		print("VERDICTS ", PhysicsWeapon.verdict_stats)
 		print("GAMEPLAY_SUMMARY reason=%s hits=%d kills=%d/%d player_health=%d t=%.1f" % [
 			"cleared" if kills >= _foes else ("player_died" if p.is_dead() else "timeout"),
 			hits, kills, _foes, roundi(p.health), t])
@@ -103,8 +110,10 @@ func _physics_process(delta: float) -> void:
 		Input.action_press(act)
 		await get_tree().process_frame
 		Input.action_release(act)
-		attack_cd = 1.0
-		retreat = 0.4
+		attack_cd = 1.2
+		# Back off only after the follow-through: the blade is live 0.4-0.6 s
+		# into the swing, and retreating earlier drags it out of range.
+		retreat_delay = 0.75
 
 
 func _snap(label: String) -> void:

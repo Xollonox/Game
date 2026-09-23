@@ -124,9 +124,10 @@ func _process(_delta: float) -> void:
 ## The one call sites use: everything a landed hit should produce, scaled by
 ## [param severity] (0 = graze, 1 = crushing). [param dir] is the direction the
 ## blow travelled, so spray goes with the swing rather than straight up.
-func impact(pos: Vector3, dir: Vector3, severity: float) -> void:
+func impact(pos: Vector3, dir: Vector3, severity: float, with_spray := true) -> void:
 	severity = clampf(severity, 0.0, 1.0)
-	spray(pos, dir, severity)
+	if with_spray:
+		spray(pos, dir, severity)
 	play_hit(pos, severity)
 	shake_requested.emit(lerpf(0.25, 1.0, severity))
 	# Only the heavy end of the range gets hit-stop: on every connect it reads
@@ -145,6 +146,7 @@ func spray(pos: Vector3, dir: Vector3, severity: float) -> void:
 	_next_burst = (_next_burst + 1) % _bursts.size()
 	p.global_position = pos
 	p.direction = dir.normalized() if dir.length_squared() > 0.001 else Vector3.UP
+	p.spread = 38.0
 	p.amount = int(lerpf(10.0, 44.0, severity) * (1.0 if quality_high else 0.55))
 	p.initial_velocity_min = lerpf(1.2, 3.0, severity)
 	p.initial_velocity_max = lerpf(3.5, 9.0, severity)
@@ -153,6 +155,59 @@ func spray(pos: Vector3, dir: Vector3, severity: float) -> void:
 	p.restart()
 	p.emitting = true
 	_ground_splat(pos, severity)
+
+
+## An arterial spurt from a wound: a narrow, fast jet along [param dir].
+func spurt(pos: Vector3, dir: Vector3, strength: float) -> void:
+	if not blood_enabled or _bursts.is_empty():
+		return
+	var p := _bursts[_next_burst]
+	_next_burst = (_next_burst + 1) % _bursts.size()
+	p.global_position = pos
+	p.direction = dir.normalized()
+	p.spread = 9.0
+	p.amount = int(lerpf(8.0, 26.0, strength) * (1.0 if quality_high else 0.5))
+	p.initial_velocity_min = lerpf(1.2, 2.6, strength)
+	p.initial_velocity_max = lerpf(2.0, 4.2, strength)
+	p.scale_amount_min = 0.012
+	p.scale_amount_max = 0.035
+	p.restart()
+	p.emitting = true
+
+
+## A few drops falling from a wound.
+func drip(pos: Vector3) -> void:
+	if not blood_enabled or _bursts.is_empty():
+		return
+	var p := _bursts[_next_burst]
+	_next_burst = (_next_burst + 1) % _bursts.size()
+	p.global_position = pos
+	p.direction = Vector3.DOWN
+	p.spread = 12.0
+	p.amount = 3 if quality_high else 2
+	p.initial_velocity_min = 0.05
+	p.initial_velocity_max = 0.4
+	p.scale_amount_min = 0.012
+	p.scale_amount_max = 0.022
+	p.restart()
+	p.emitting = true
+
+
+## A blood mark on any surface — floor, wall, a body — facing [param normal]
+## (pooled quads: cheap on the Compatibility renderer, no depth decals).
+func splat_at(pos: Vector3, normal: Vector3, size: float) -> void:
+	if not blood_enabled or _splats.is_empty():
+		return
+	var idx := _next_splat
+	_next_splat = (_next_splat + 1) % _splats.size()
+	var s := _splats[idx]
+	var n := normal.normalized() if normal.length_squared() > 0.01 else Vector3.UP
+	var up := Vector3.UP if absf(n.dot(Vector3.UP)) < 0.95 else Vector3.FORWARD
+	var basis := Basis.looking_at(-n, up).rotated(n, _rng.randf() * TAU)
+	var sz := size * _rng.randf_range(0.7, 1.3)
+	s.global_transform = Transform3D(basis.scaled(Vector3(sz, sz, sz)), pos + n * 0.006)
+	s.visible = true
+	_splat_expiry[idx] = float(Time.get_ticks_msec()) * 0.001 + SPLAT_LIFETIME
 
 
 ## Swing whoosh — pitched by how fast the blade is actually moving.
@@ -369,10 +424,14 @@ func _ground_splat(pos: Vector3, severity: float) -> void:
 	s.scale = Vector3(size, size, size)
 	# Land it on the ground under the hit, lifted a hair to avoid z-fighting
 	# with the ground plane.
-	s.global_position = Vector3(
-		pos.x + _rng.randf_range(-0.25, 0.25),
-		0.012,
-		pos.z + _rng.randf_range(-0.25, 0.25))
+	var floor_y := 0.012
+	var from := Vector3(pos.x + _rng.randf_range(-0.25, 0.25), pos.y, pos.z + _rng.randf_range(-0.25, 0.25))
+	var world := get_viewport().world_3d if get_viewport() else null
+	if world:
+		var hit := world.direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 4.0, 1))
+		if not hit.is_empty():
+			floor_y = float(hit["position"].y) + 0.008
+	s.global_position = Vector3(from.x, floor_y, from.z)
 	s.rotation = Vector3(-PI * 0.5, 0.0, _rng.randf() * TAU)
 	s.visible = true
 	_splat_expiry[idx] = float(Time.get_ticks_msec()) * 0.001 + SPLAT_LIFETIME

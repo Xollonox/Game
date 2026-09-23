@@ -23,6 +23,8 @@ damage from its own measured contact speed.
 | `C` / right mouse (hold), or GUARD | Guard |
 | `X` | Step back out of range |
 | `G` (hold, when badly hurt) | Yield: lose the bout, keep your life (-10 renown) |
+| `V` | Kick (forward = push kick, back/side = low kick) — armed or not |
+| `E` | Take up a loose weapon at your feet (yours, or one knocked out of a hand) |
 | `Shift` | Sprint (cut while sprinting = heavy blow) |
 | `Q` / `E`, middle-drag, touch drag | Turn the camera; `Tab` toggles lock-on |
 | Mouse wheel | Zoom |
@@ -40,7 +42,8 @@ damage from its own measured contact speed.
 
 - **Characters** (`tools/blender/build_fighter.py`): Quaternius Universal Base Characters human (CC0) with face, hair and beard, UAL1 + UAL2 clips retargeted in world space, and an original IK-authored melee library (`melee_anims.py`) — stances, guards, cuts, thrusts, guarded gaits, flinches, stagger, evade and get-ups per weapon family, built from HEMA body mechanics.
 - **Wardrobe** (`wardrobe.py`, `helmets.py`): shirt, tunic, hose, shoes, boots, gambeson, haubergeon, mail coif, brigandine, full harness and six helmets generated around the body; covered skin zones are hidden.
-- **Wound model** (`KickbackActor.receive_weapon_hit`): cut / pierce / blunt channels against layered armour coverage (`scripts/armory.gd`), momentum knock scaled by worn weight, bleeding, sparks on steel.
+- **Wounds** (`InjurySystem`, `Dismemberment`, `BleedingSource`): 17 body regions with tissue, trauma, bleeding and fractures, and physical consequences (a weak arm, a limp, concussion). Qualified cuts sever limbs along Blender-cut segments. Blood comes from the wound itself and lands where it falls; the Blood setting turns all of it off.
+- **Equipment in the world**: weapons are torn loose, fall and can be picked up again, by the player (`E`) or a disarmed opponent. Armour lies on the bench in the lists and can be put on; a crushing blow can knock a helmet off.
 - **Arsenal** (`tools/blender/build_weapons.py`): arming sword, longsword, falchion, rondel dagger, bearded axe, flanged mace, cudgel, war spear, heater shield — each with measured mass, centre of mass and per-part collision boxes, driven as a real body by `PhysicsWeapon`.
 
 ## The world
@@ -83,6 +86,16 @@ material slots (`M_Stone`, `M_Wood`, `M_Roof`…) and box-projected UVs; LODs ar
 emitted for the heaviest silhouettes. Godot then applies the shared PBR
 materials per slot name.
 
+## Physics and combat
+
+Touching is not striking: every weapon contact is judged by relative
+velocity at the contact point, which surface led (edge, point, head, flat),
+the wielder's attack phase and the contact's lifetime. Wounds are regional
+and have physical consequences; balance is a capture-point controller that
+steps; weapons can be torn loose, fall as rigid bodies and be picked up
+again; bare hands punch and kick through the same rules. See
+[PHYSICS.md](PHYSICS.md) for the equations, thresholds, layers and tests.
+
 ## Tests
 
 All tests are scenes under `tests/` and run headlessly (vision tests need a GL
@@ -96,6 +109,10 @@ xvfb-run -a godot --path . res://tests/gameplay_test.tscn -- --bout=4 --shots=/t
 xvfb-run -a godot --path . res://tests/gameplay_test.tscn -- --hollow                   # bot in the Hollow
 xvfb-run -a godot --path . res://tests/fighter_gallery.tscn -- --shots=/tmp/gallery     # one fighter per rank
 xvfb-run -a godot --path . res://tests/flow_test.tscn                                  # full run loop: win, shop, spoils, die, Hollow, return, run over
+xvfb-run -a godot --path . res://tests/contact_test.tscn                               # touching is not striking; cuts, thrusts, blows, punches, kicks; armour
+xvfb-run -a godot --path . res://tests/balance_test.tscn                               # blows of rising force, recovery steps, get-up quality
+xvfb-run -a godot --path . res://tests/injury_test.tscn                                # regional wounds and their consequences
+xvfb-run -a godot --path . res://tests/item_test.tscn                                  # disarm, drop, pickup, AI weapon retrieval
 xvfb-run -a godot --path . res://tests/shop_test.tscn                                  # shop/inventory rules + tent screenshots
 ```
 

@@ -82,6 +82,13 @@ func _process_modification_with_delta(_delta: float) -> void:
 	var skel_inv := _skeleton.global_transform.affine_inverse()
 	var bodies := _rig_builder.get_bodies()
 	for entry: Dictionary in _ordered:
+		if _frozen.has(entry.bone_idx):
+			# Bare Steel: a severed bone stays where it was cut, riding its
+			# parent; the flying limb must not drag the stump's skin after it.
+			var parent := _skeleton.get_bone_parent(entry.bone_idx)
+			var pg := _skeleton.get_bone_global_pose(parent) if parent >= 0 else Transform3D.IDENTITY
+			_set_bone(entry.bone_idx, pg * (_frozen[entry.bone_idx] as Transform3D))
+			continue
 		match entry.kind:
 			"body":
 				var body: RigidBody3D = entry.body
@@ -94,6 +101,29 @@ func _process_modification_with_delta(_delta: float) -> void:
 				var mid := body_a.global_position.lerp(body_b.global_position, entry.weight)
 				var basis_src: Basis = body_a.global_basis if entry.use_a_basis else body_b.global_basis
 				_set_bone(entry.bone_idx, skel_inv * Transform3D(basis_src, mid))
+
+
+## Bare Steel: bone idx -> pose relative to its parent, for severed limbs.
+var _frozen: Dictionary = {}
+
+
+## Freezes the bones driven by [param rigs] (and intermediate bones between
+## them) in their current pose relative to their parents.
+func freeze_rigs(rigs: Array) -> void:
+	if not _cache_built:
+		_build_cache()
+	for entry: Dictionary in _ordered:
+		var hit := false
+		if entry.kind == "body":
+			hit = String((entry.body as RigidBody3D).name) in rigs
+		else:
+			hit = entry.body_a in rigs or entry.body_b in rigs
+		if not hit:
+			continue
+		var bi: int = entry.bone_idx
+		var parent := _skeleton.get_bone_parent(bi)
+		var pg := _skeleton.get_bone_global_pose(parent) if parent >= 0 else Transform3D.IDENTITY
+		_frozen[bi] = pg.affine_inverse() * _skeleton.get_bone_global_pose(bi)
 
 
 func _set_bone(bone_idx: int, skel_pose: Transform3D) -> void:

@@ -29,6 +29,7 @@ var _marker_name: Label
 var _marker_bar: ProgressBar
 var _feed: VBoxContainer
 var _hint: Label
+var _prompt: Label
 var _hint_timer := 0.0
 var _hint_shown := true
 
@@ -177,6 +178,20 @@ func _build_hint() -> void:
 	_hint.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	_hint.add_theme_constant_override("outline_size", 4)
 	_root.add_child(_hint)
+	_prompt = Label.new()
+	_prompt.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_prompt.offset_left = -300.0
+	_prompt.offset_right = 300.0
+	_prompt.offset_top = -110.0
+	_prompt.offset_bottom = -82.0
+	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_prompt.add_theme_font_override("font", UITheme.display(600))
+	_prompt.add_theme_font_size_override("font_size", 16)
+	_prompt.add_theme_color_override("font_color", UITheme.INK)
+	_prompt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_prompt.add_theme_constant_override("outline_size", 5)
+	_prompt.modulate.a = 0.0
+	_root.add_child(_prompt)
 
 
 func _build_death() -> void:
@@ -388,6 +403,15 @@ func set_target(name_text: String, ratio: float, screen_pos: Vector2, show: bool
 
 
 ## One line in the corner feed, e.g. a kill or a telling blow.
+## A subtle contextual prompt (a loose weapon at your feet). "" hides it.
+func set_prompt(text: String) -> void:
+	if not _prompt:
+		return
+	if text != "":
+		_prompt.text = text
+	_prompt.modulate.a = move_toward(_prompt.modulate.a, 1.0 if text != "" else 0.0, 0.08)
+
+
 func feed(text: String) -> void:
 	var label := Label.new()
 	label.text = text
