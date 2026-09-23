@@ -206,7 +206,7 @@ func _live_tests() -> void:
 	var att := _fighter(Vector3(0, 0, -1.25), Vector3(0, 0, 1), ["G_Tunic", "G_Hose"], "arming_sword")
 	var vic := _fighter(Vector3(0, 0, 0.1), Vector3(0, 0, -1), ["G_Shirt", "G_Hose"], "")
 	var kinds: Array[String] = []
-	vic.wounded.connect(func(_x, info): kinds.append(String(info["kind"])))
+	vic.wounded.connect(func(_x, info): kinds.append(String(info["kind"])); print("   SWING v=%.2f flesh=%.1f sys=%.1f region=%s kind=%s" % [info["speed"], info["flesh"], info["damage"], info["region"], info["kind"]]))
 	await _wait(1.0)
 	var peak_strain := 0.0
 	for i in 10:
@@ -228,7 +228,7 @@ func _live_tests() -> void:
 		var boxer := _fighter(Vector3(0, 0, -0.72 if kind == "cut" else -0.8), Vector3(0, 0, 1), ["G_Tunic", "G_Hose"], "")
 		var bag := _fighter(Vector3(0, 0, 0.1), Vector3(0, 0, -1), ["G_Shirt", "G_Hose"], "")
 		var landed: Array[String] = []
-		bag.wounded.connect(func(_x, info): landed.append(String(info["kind"])))
+		bag.wounded.connect(func(_x, info): landed.append(String(info["kind"])); print("   STRIKE ", kind, " v=%.2f flesh=%.1f trauma=%.1f sys=%.1f region=%s" % [info["speed"], info["flesh"], info["trauma"], info["damage"], info["region"]]))
 		await _wait(1.0)
 		for i in 10:
 			await _set_range(boxer, bag, 0.7 if kind == "cut" else 0.85)
@@ -236,8 +236,8 @@ func _live_tests() -> void:
 			await _wait(1.3)
 			if not landed.is_empty():
 				break
-		_check("blunt" in landed, "%s lands as a blunt blow (%s, %.1f dmg)" % ["a punch" if kind == "cut" else "a kick",
-			landed, _damage(bag)])
+		_check("blunt" in landed and _damage(bag) >= 3.0, "%s lands as a blunt blow that hurts (%s, %.1f dmg)" % [
+			"a punch" if kind == "cut" else "a kick", landed, _damage(bag)])
 		await _clear()
 
 	# 6. Armour: the same qualified cut on plate vs on a bare arm.

@@ -29,31 +29,31 @@ extends RefCounted
 ## Thresholds are per weapon (WeaponCatalog STATS may override any of them);
 ## there is no single global minimum speed.
 
-const PHASE_WEIGHT := {"prep": 0.0, "accel": 0.6, "active": 1.0, "follow": 0.75, "recovery": 0.0, "none": 0.0}
+const PHASE_WEIGHT := {"prep": 0.0, "accel": 0.8, "active": 1.0, "follow": 0.85, "recovery": 0.0, "none": 0.0}
 
 ## Defaults by weapon class: min_cut / min_thrust / min_blunt are the
 ## qualifying component speeds (m/s); *_energy the minimum kinetic energy of
 ## that component (J, ½·m·v²); edge_align / thrust_align the fraction of the
 ## relative speed that must be carried by the edge / along the point.
 const CLASS_DEFAULTS := {
-	"sword": {"min_cut": 4.5, "min_thrust": 3.0, "min_blunt": 4.0, "cut_energy": 9.0, "thrust_energy": 5.0,
-		"blunt_energy": 12.0, "edge_align": 0.6, "thrust_align": 0.8},
-	"axe": {"min_cut": 4.0, "min_thrust": 99.0, "min_blunt": 3.8, "cut_energy": 10.0, "thrust_energy": 99.0,
-		"blunt_energy": 11.0, "edge_align": 0.55, "thrust_align": 0.9},
-	"dagger": {"min_cut": 3.2, "min_thrust": 2.2, "min_blunt": 4.0, "cut_energy": 1.8, "thrust_energy": 0.9,
-		"blunt_energy": 8.0, "edge_align": 0.6, "thrust_align": 0.75},
-	"spear": {"min_cut": 5.0, "min_thrust": 2.8, "min_blunt": 3.8, "cut_energy": 12.0, "thrust_energy": 7.0,
-		"blunt_energy": 14.0, "edge_align": 0.65, "thrust_align": 0.82},
-	"mace": {"min_cut": 99.0, "min_thrust": 99.0, "min_blunt": 3.4, "cut_energy": 99.0, "thrust_energy": 99.0,
-		"blunt_energy": 9.0, "edge_align": 1.0, "thrust_align": 1.0},
-	"club": {"min_cut": 99.0, "min_thrust": 99.0, "min_blunt": 3.6, "cut_energy": 99.0, "thrust_energy": 99.0,
+	"sword": {"min_cut": 3.4, "min_thrust": 2.4, "min_blunt": 3.2, "cut_energy": 5.0, "thrust_energy": 3.0,
+		"blunt_energy": 8.0, "edge_align": 0.5, "thrust_align": 0.72},
+	"axe": {"min_cut": 3.2, "min_thrust": 99.0, "min_blunt": 3.0, "cut_energy": 5.5, "thrust_energy": 99.0,
+		"blunt_energy": 7.0, "edge_align": 0.48, "thrust_align": 0.9},
+	"dagger": {"min_cut": 2.6, "min_thrust": 1.8, "min_blunt": 3.2, "cut_energy": 1.2, "thrust_energy": 0.6,
+		"blunt_energy": 5.0, "edge_align": 0.5, "thrust_align": 0.68},
+	"spear": {"min_cut": 4.0, "min_thrust": 2.3, "min_blunt": 3.0, "cut_energy": 8.0, "thrust_energy": 4.0,
+		"blunt_energy": 9.0, "edge_align": 0.55, "thrust_align": 0.72},
+	"mace": {"min_cut": 99.0, "min_thrust": 99.0, "min_blunt": 2.7, "cut_energy": 99.0, "thrust_energy": 99.0,
+		"blunt_energy": 5.5, "edge_align": 1.0, "thrust_align": 1.0},
+	"club": {"min_cut": 99.0, "min_thrust": 99.0, "min_blunt": 2.8, "cut_energy": 99.0, "thrust_energy": 99.0,
+		"blunt_energy": 5.0, "edge_align": 1.0, "thrust_align": 1.0},
+	"fist": {"min_cut": 99.0, "min_thrust": 99.0, "min_blunt": 2.3, "cut_energy": 99.0, "thrust_energy": 99.0,
+		"blunt_energy": 4.0, "edge_align": 1.0, "thrust_align": 1.0},
+	"foot": {"min_cut": 99.0, "min_thrust": 99.0, "min_blunt": 2.0, "cut_energy": 99.0, "thrust_energy": 99.0,
 		"blunt_energy": 8.0, "edge_align": 1.0, "thrust_align": 1.0},
-	"fist": {"min_cut": 99.0, "min_thrust": 99.0, "min_blunt": 3.2, "cut_energy": 99.0, "thrust_energy": 99.0,
-		"blunt_energy": 9.0, "edge_align": 1.0, "thrust_align": 1.0},
-	"foot": {"min_cut": 99.0, "min_thrust": 99.0, "min_blunt": 2.6, "cut_energy": 99.0, "thrust_energy": 99.0,
-		"blunt_energy": 16.0, "edge_align": 1.0, "thrust_align": 1.0},
-	"shield": {"min_cut": 99.0, "min_thrust": 99.0, "min_blunt": 3.0, "cut_energy": 99.0, "thrust_energy": 99.0,
-		"blunt_energy": 15.0, "edge_align": 1.0, "thrust_align": 1.0},
+	"shield": {"min_cut": 99.0, "min_thrust": 99.0, "min_blunt": 2.6, "cut_energy": 99.0, "thrust_energy": 99.0,
+		"blunt_energy": 10.0, "edge_align": 1.0, "thrust_align": 1.0},
 }
 ## Kinetic energy (J) a contact needs to wound with no attack behind it: a
 ## dropped axe landing blade-first, a weapon flung loose by a disarm.
@@ -185,7 +185,9 @@ static func evaluate(def: Dictionary, part: String, basis: Basis, v_rel: Vector3
 		out["reason"] = "too_weak"
 		return out
 	out["valid"] = true
-	out["quality"] = clampf(intent * clampf(align, 0.2, 1.0), 0.05, 1.0)
+	# A valid blow always carries a fair share of its weight: alignment
+	# decides the kind of wound far more than its size.
+	out["quality"] = clampf(intent * clampf(align, 0.5, 1.0), 0.3, 1.0)
 	out["reason"] = "ok"
 	if cls == "shield":
 		out["kind"] = "blunt"

@@ -739,11 +739,13 @@ func attack_phase() -> String:
 	# opens halfway through the acceleration.
 	if u < float(ph[0]):
 		return "prep"
-	if u < lerpf(float(ph[0]), float(ph[1]), 0.45):
+	if u < lerpf(float(ph[0]), float(ph[1]), 0.35):
 		return "accel"
-	if u < lerpf(float(ph[1]), float(ph[2]), 0.6):
-		return "active"
+	# The physical blade lags the animated hand, so the live window runs a
+	# little past the authored follow-through.
 	if u < float(ph[2]):
+		return "active"
+	if u < minf(float(ph[2]) + 0.2, 0.95):
 		return "follow"
 	return "recovery"
 
@@ -806,17 +808,17 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 	var prot := Armory.protection(garments, rig_name, kind, _rng)
 	# The blow's wounding potential, independent of where it landed (the
 	# region's anatomy decides what it means).
-	var raw := 2.6 * speed * sqrt(wmass / 1.2) * channel * quality
+	var raw := 3.2 * speed * sqrt(wmass / 1.2) * channel * quality
 	var flesh: float = raw * prot["remaining"]
 	# Blunt trauma transmitted whatever the edge did: plate turns a cut but
 	# the man inside still takes the blow.
 	var blunt_prot := Armory.protection(garments, rig_name, "blunt", _rng)
-	var trauma: float = 2.6 * speed * sqrt(wmass / 1.2) * maxf(float(wdef.get("blunt", 0.25)), 0.25) * quality \
+	var trauma: float = 3.2 * speed * sqrt(wmass / 1.2) * maxf(float(wdef.get("blunt", 0.25)), 0.25) * quality \
 		* float(blunt_prot["remaining"])
 	if kind == "blunt":
 		trauma = maxf(trauma, flesh)
 	var tissue_before := float(injuries.regions[region]["tissue"])
-	var inj := injuries.apply(region, kind, flesh if kind != "blunt" else flesh * 0.4, trauma)
+	var inj := injuries.apply(region, kind, flesh, trauma)
 	var sever: bool = not injuries.regions[region]["severed"] and Dismemberment.qualifies(region, kind, flesh, quality,
 		wdef, float(prot["remaining"]), tissue_before)
 
@@ -846,6 +848,13 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 		CombatFX.play_wound(point, kind, sev)
 		BleedingSource.attach(body, point, (point - body.global_position).normalized(), injuries, region, dir, sev)
 		_add_wound(body, point, clampf(0.04 + flesh / 220.0, 0.04, 0.16))
+	elif kind == "blunt" and flesh >= 3.5 and float(prot["remaining"]) > 0.5:
+		# A club, a fist or a boot on bare skin splits it: a smaller spray
+		# and a slow bleed from where it landed (a face bleeds freely).
+		CombatFX.impact(point, dir, sev * 0.7, false)
+		BleedingSource.attach(body, point, (point - body.global_position).normalized(), injuries, region, dir,
+			sev * (0.8 if region == "head" else 0.5))
+		_add_wound(body, point, clampf(0.03 + flesh / 300.0, 0.03, 0.1))
 	elif not hard:
 		CombatFX.play_hit(point, clampf(trauma / 30.0, 0.1, 0.8))
 	if hard or flesh < 3.0:

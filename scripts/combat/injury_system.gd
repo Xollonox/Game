@@ -28,17 +28,17 @@ const REGIONS := ["head", "neck", "chest", "abdomen", "pelvis",
 ## Region -> [tissue capacity (damage to ruin it), vascular (bleed factor),
 ##             lethal weight (share of damage that is systemic), rig body]
 const ANATOMY := {
-	"head": [30.0, 0.6, 1.0, "Head"],
-	"neck": [16.0, 2.2, 1.2, "Head"],
-	"chest": [60.0, 1.0, 0.8, "Chest"],
-	"abdomen": [50.0, 1.2, 0.7, "Spine"],
-	"pelvis": [55.0, 1.0, 0.5, "Hips"],
-	"upper_arm_l": [30.0, 0.9, 0.12, "UpperArm_L"], "upper_arm_r": [30.0, 0.9, 0.12, "UpperArm_R"],
-	"forearm_l": [24.0, 0.7, 0.08, "LowerArm_L"], "forearm_r": [24.0, 0.7, 0.08, "LowerArm_R"],
-	"hand_l": [14.0, 0.4, 0.04, "Hand_L"], "hand_r": [14.0, 0.4, 0.04, "Hand_R"],
-	"thigh_l": [45.0, 1.3, 0.2, "UpperLeg_L"], "thigh_r": [45.0, 1.3, 0.2, "UpperLeg_R"],
-	"shin_l": [30.0, 0.6, 0.08, "LowerLeg_L"], "shin_r": [30.0, 0.6, 0.08, "LowerLeg_R"],
-	"foot_l": [18.0, 0.4, 0.04, "Foot_L"], "foot_r": [18.0, 0.4, 0.04, "Foot_R"],
+	"head": [30.0, 0.6, 1.2, "Head"],
+	"neck": [16.0, 2.2, 1.4, "Head"],
+	"chest": [60.0, 1.0, 0.95, "Chest"],
+	"abdomen": [50.0, 1.2, 0.85, "Spine"],
+	"pelvis": [55.0, 1.0, 0.7, "Hips"],
+	"upper_arm_l": [30.0, 0.9, 0.38, "UpperArm_L"], "upper_arm_r": [30.0, 0.9, 0.38, "UpperArm_R"],
+	"forearm_l": [24.0, 0.7, 0.42, "LowerArm_L"], "forearm_r": [24.0, 0.7, 0.42, "LowerArm_R"],
+	"hand_l": [14.0, 0.4, 0.35, "Hand_L"], "hand_r": [14.0, 0.4, 0.35, "Hand_R"],
+	"thigh_l": [45.0, 1.3, 0.45, "UpperLeg_L"], "thigh_r": [45.0, 1.3, 0.45, "UpperLeg_R"],
+	"shin_l": [30.0, 0.6, 0.3, "LowerLeg_L"], "shin_r": [30.0, 0.6, 0.3, "LowerLeg_R"],
+	"foot_l": [18.0, 0.4, 0.2, "Foot_L"], "foot_r": [18.0, 0.4, 0.2, "Foot_R"],
 }
 ## Blunt energy (after armour) that breaks the bone of a region in one blow.
 const FRACTURE_AT := {"head": 0.9, "forearm_l": 0.75, "forearm_r": 0.75, "hand_l": 0.6, "hand_r": 0.6,
@@ -107,6 +107,8 @@ func apply(region: String, kind: String, flesh: float, trauma: float) -> Diction
 			out["bleed_added"] = flesh * 0.06 * float(an[1])
 		_:
 			r["tissue"] = float(r["tissue"]) + flesh * 0.3 / cap
+			# Split skin, a broken nose: blunt blows bleed a little.
+			out["bleed_added"] = flesh * (0.035 if region == "head" else 0.012) * float(an[1])
 	# Blunt trauma: from blunt blows, and what any blow transmits through armour.
 	var tr := trauma / cap
 	r["blunt"] = float(r["blunt"]) + tr
@@ -117,7 +119,7 @@ func apply(region: String, kind: String, flesh: float, trauma: float) -> Diction
 	if region == "head":
 		stun = maxf(stun, clampf(tr * 3.0, 0.0, 2.5))
 	# Systemic share: a cut throat kills, a cut hand does not.
-	out["systemic"] = (flesh + trauma * 0.35) * float(an[2])
+	out["systemic"] = (flesh + trauma * 0.6) * float(an[2])
 	out["lethal"] = (region in ["head", "neck", "chest", "abdomen"]) and float(r["tissue"]) >= 1.25 \
 		or (region == "head" and float(r["blunt"]) >= 1.6)
 	return out
