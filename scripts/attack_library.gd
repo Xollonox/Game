@@ -13,6 +13,11 @@ extends RefCounted
 ## fighter is locked into), move_scale (how much locomotion survives the
 ## attack), dir (the line of the cut: high / left / right / low / thrust).
 
+## Normalized clip times of [wind-up peak, strike, end of follow-through],
+## the key layout every authored cut in melee_anims.py uses (0.28/0.47/0.66
+## of a 1.2 s Oberhau). A move may carry its own "phases".
+const DEFAULT_PHASES := [0.23, 0.39, 0.56]
+
 const MOVES := {
 	"sword": {
 		"cut": [

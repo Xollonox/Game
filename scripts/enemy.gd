@@ -151,7 +151,7 @@ func _tick_ai(delta: float) -> void:
 			if _timer <= 0.0:
 				if debug_log:
 					print("AI %s windup-done dist=%.2f reach=%.2f" % [spec.get("name", ""), dist, _reach])
-				if dist <= _reach + 0.5 and attack(_choose_attack(), {"ai": true}):
+				if dist <= _reach + 0.15 and attack(_choose_attack(), {"ai": true}):
 					_state = State.RECOVER
 					_timer = lerpf(1.1, 0.4, _skill) * float(spec.get("ai", {}).get("cadence", 1.0))
 				else:

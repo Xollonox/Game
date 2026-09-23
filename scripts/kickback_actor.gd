@@ -79,6 +79,10 @@ var _rig_builder: PhysicsRigBuilder
 var _flinch_timer := 0.0
 var _attack_timer := 0.0
 var _attack_move: Dictionary = {}
+## Increments with every attack, so a weapon can score one blow per target
+## per swing (see WeaponContactEvaluator.ContactLog).
+var attack_serial := 0
+var _attack_anim := ""
 var _guarding := false
 var _guard_anim := "Sword_Block"
 var _downed := false
@@ -356,6 +360,8 @@ func attack(kind: String = "cut", context: Dictionary = {}) -> bool:
 	var dur := anim.get_animation(move["anim"]).length
 	_attack_timer = float(move.get("commit", 0.8)) * dur / rate
 	_attack_move = move
+	_attack_anim = move["anim"]
+	attack_serial += 1
 	CombatFX.play_cloth(global_position + Vector3.UP, worn_weight)
 	return true
 
@@ -406,6 +412,31 @@ func set_guard(on: bool, threat: PhysicsWeapon = null) -> void:
 	_guarding = on
 
 
+## Where the current attack is: "prep" (wind-up), "accel" (bringing the
+## weapon round), "active" (the part meant to land), "follow" (follow-through)
+## or "recovery"; "none" when not attacking. Read from the playing clip's
+## normalized time against the move's authored key times (AttackLibrary).
+func attack_phase() -> String:
+	if _attack_anim == "" or not anim or anim.current_animation != _attack_anim or _downed or _dead:
+		return "none"
+	var length := anim.current_animation_length
+	if length <= 0.0:
+		return "none"
+	var u := anim.current_animation_position / length
+	var ph: Array = _attack_move.get("phases", AttackLibrary.DEFAULT_PHASES)
+	# ph = [wind-up peak, strike, end of follow-through]; the active window
+	# opens halfway through the acceleration.
+	if u < float(ph[0]):
+		return "prep"
+	if u < lerpf(float(ph[0]), float(ph[1]), 0.45):
+		return "accel"
+	if u < lerpf(float(ph[1]), float(ph[2]), 0.6):
+		return "active"
+	if u < float(ph[2]):
+		return "follow"
+	return "recovery"
+
+
 func is_guarding() -> bool:
 	return _guarding
 
@@ -454,7 +485,10 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 	var loc := CombatProfiles.location_weight(rig_name)
 	var prot := Armory.protection(spec.get("garments", []), rig_name, kind, _rng)
 	# Guarding with a shield soaks blows landing on the shield arm side.
-	var raw := 1.6 * speed * sqrt(wmass / 1.2) * channel * loc
+	# speed is the evaluator's qualifying component (edge speed for a cut,
+	# axial speed for a thrust, normal speed for a blow); quality folds in
+	# edge alignment and attack phase.
+	var raw := 2.6 * speed * sqrt(wmass / 1.2) * channel * loc * float(info.get("quality", 1.0))
 	var dmg: float = raw * prot["remaining"]
 	# Momentum knock: blunt weapons and heavy blows move even armoured men;
 	# worn weight steadies them.

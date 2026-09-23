@@ -18,7 +18,8 @@ extends RigidBody3D
 ##
 ## Hit detection runs inside _integrate_forces off the live contact list (see
 ## the note preserved from PhysicsSword: the contact_monitor signals are a step
-## stale and measured zero hits on real swings).
+## stale and measured zero hits on real swings). Every body contact goes
+## through WeaponContactEvaluator: touching is not striking.
 
 signal landed_hit(target_name: String, profile_name: String)
 
@@ -28,10 +29,8 @@ const ANGULAR_STIFFNESS := 60.0
 const SPRING_WEIGHT := 0.55
 const STUCK_STIFFNESS_SCALE := 0.12
 const STUCK_DURATION := 0.35
-const HIT_COOLDOWN := 0.32
 const CLASH_SPEED := 3.0
 const CLASH_COOLDOWN := 0.25
-const MIN_HIT_SPEED := 1.4
 const STICK_SPEED := 14.0
 const SWISH_SPEED := 5.0
 const SWISH_COOLDOWN := 0.45
@@ -55,11 +54,14 @@ var _shape_parts: Array[String] = []
 var _lin_weight := SPRING_WEIGHT
 var _ang_weight := SPRING_WEIGHT
 var _stuck_timer := 0.0
-var _hit_cooldown := 0.0
 var _swish_cooldown := 0.0
 var _clash_cooldown := 0.0
 var _trail: SwordTrail
-var _recent_targets: Dictionary = {}
+var _contacts := WeaponContactEvaluator.ContactLog.new()
+## The evaluator's last verdict on a body contact (for tests and debugging).
+var last_verdict: Dictionary = {}
+## Body contacts seen with other fighters (diagnostics).
+var touches := 0
 
 
 static func create(id: String) -> PhysicsWeapon:
@@ -163,7 +165,6 @@ func detach() -> void:
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	var delta := state.get_step()
 	_stuck_timer = maxf(0.0, _stuck_timer - delta)
-	_hit_cooldown = maxf(0.0, _hit_cooldown - delta)
 	_swish_cooldown = maxf(0.0, _swish_cooldown - delta)
 	_clash_cooldown = maxf(0.0, _clash_cooldown - delta)
 
@@ -220,59 +221,55 @@ func blade_axis() -> Vector3:
 
 
 func _check_hits(state: PhysicsDirectBodyState3D) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	# Per step: whether each man touched is a fresh impact, and whether he
+	# has already been struck (several contact points count once).
+	var fresh := {}
+	var struck := {}
 	for i in range(state.get_contact_count()):
 		var body := state.get_contact_collider_object(i)
 		var shape_idx := state.get_contact_local_shape(i)
 		var part: String = _shape_parts[shape_idx] if shape_idx >= 0 and shape_idx < _shape_parts.size() else "edge"
 		var point := state.get_contact_collider_position(i)
 		var vel := _point_velocity(state, point)
-		var speed := vel.length()
 		if body is PhysicsWeapon:
 			_check_clash(point, body, vel, part)
-			continue
-		if _hit_cooldown > 0.0 or speed < MIN_HIT_SPEED or (wielder and not wielder.weapons_live):
 			continue
 		if not body is RigidBody3D or not body.has_meta(&"kickback_actor"):
 			continue
 		var target_actor: KickbackActor = body.get_meta(&"kickback_actor")
 		if not target_actor or target_actor == wielder or target_actor.is_dead():
 			continue
-		# One registered blow per target per swing window.
-		var now := Time.get_ticks_msec()
-		if now - int(_recent_targets.get(target_actor.get_instance_id(), -99999)) < 380:
+		var tid := target_actor.get_instance_id()
+		touches += 1
+		# Contact lifetime: only the first step of a contact is an impact.
+		if not fresh.has(tid):
+			fresh[tid] = _contacts.touch(tid, now)
+		if not fresh[tid] or struck.has(tid):
 			continue
-		_recent_targets[target_actor.get_instance_id()] = now
-		_hit_cooldown = HIT_COOLDOWN
-
-		var kind := _damage_kind(part, vel)
+		var serial := wielder.attack_serial if wielder else 0
+		if _contacts.already_hit_this_swing(tid, serial):
+			continue
+		var v_rel := vel - WeaponContactEvaluator.point_velocity(body, point)
+		var phase := "none"
+		if wielder and wielder.weapons_live:
+			phase = wielder.attack_phase()
+		var verdict := WeaponContactEvaluator.evaluate(def, part, state.transform.basis, v_rel,
+			state.get_contact_local_normal(i), mass, phase)
+		last_verdict = verdict
+		if not verdict["valid"]:
+			continue
+		struck[tid] = true
+		_contacts.mark_swing(tid, serial)
 		var info := {
-			"rig_name": String(body.name), "dir": vel / speed, "speed": speed, "kind": kind,
-			"part": part, "weapon": self, "attacker": wielder, "point": point,
-			"mass": mass,
+			"rig_name": String(body.name), "dir": v_rel.normalized(), "speed": float(verdict["speed"]),
+			"kind": verdict["kind"], "quality": float(verdict["quality"]), "energy": float(verdict["energy"]),
+			"part": part, "weapon": self, "attacker": wielder, "point": point, "mass": mass,
 		}
 		var result: Dictionary = target_actor.receive_weapon_hit(info)
 		landed_hit.emit(target_actor.name, String(result.get("profile", "")))
-		if speed >= STICK_SPEED and kind != "blunt":
+		if float(verdict["speed"]) >= STICK_SPEED and verdict["kind"] != "blunt":
 			_stuck_timer = STUCK_DURATION
-		return
-
-
-## How this contact wounds: a point moving along the blade axis pierces, an
-## edge moving across it cuts, and anything else (flats, hafts, heads,
-## shields) bludgeons.
-func _damage_kind(part: String, vel: Vector3) -> String:
-	match part:
-		"point":
-			var along := absf(vel.normalized().dot(blade_axis()))
-			if along > 0.6:
-				return "pierce"
-			return "cut" if float(def.get("cut", 0.0)) > 0.5 else "blunt"
-		"edge":
-			return "cut" if float(def.get("cut", 0.0)) > 0.2 else "blunt"
-		"head":
-			return "blunt"
-		_:
-			return "blunt"
 
 
 ## Blade-on-blade / blade-on-shield contact. Only the lower instance id rings
