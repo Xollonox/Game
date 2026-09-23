@@ -277,11 +277,6 @@ func _build_pause() -> void:
 	resume.pressed.connect(toggle_pause)
 	box.add_child(resume)
 
-	var restart := _menu_button("Restart the Duel", false)
-	restart.pressed.connect(func():
-		toggle_pause()
-		restart_requested.emit())
-	box.add_child(restart)
 
 	var settings := _menu_button("Settings", false)
 	settings.pressed.connect(func():
@@ -292,7 +287,7 @@ func _build_pause() -> void:
 	_settings_box.visible = false
 	box.add_child(_settings_box)
 
-	var leave := _menu_button("Leave the Yard", false)
+	var leave := _menu_button("Leave the Yard (progress is kept)", false)
 	leave.pressed.connect(func():
 		toggle_pause()
 		leave_requested.emit())
