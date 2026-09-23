@@ -54,6 +54,8 @@ const CHOP_SOUND := "res://assets/sfx/kenney/rpg/chop.ogg"
 
 var _bursts: Array[CPUParticles3D] = []
 var _sparks: Array[CPUParticles3D] = []
+var _dust: Array[CPUParticles3D] = []
+var _next_dust := 0
 var _next_spark := 0
 var _next_burst := 0
 var _splats: Array[MeshInstance3D] = []
@@ -87,6 +89,7 @@ func _ready() -> void:
 	var blood_tex := _make_blood_texture()
 	_build_bursts()
 	_build_sparks()
+	_build_dust()
 	_build_splats(blood_tex)
 	_build_audio()
 	for path in HIT_SOUNDS:
@@ -256,6 +259,54 @@ func armor_impact(pos: Vector3, dir: Vector3, intensity: float, layer: String) -
 		play_clash(pos, clampf(intensity * 1.2, 0.2, 1.0))
 	else:
 		play_hit(pos, intensity * 0.5)
+
+
+## A body hitting the ground: a low ring of dust kicked out of the lists.
+func dust(pos: Vector3, intensity: float) -> void:
+	if _dust.is_empty():
+		return
+	var p := _dust[_next_dust]
+	_next_dust = (_next_dust + 1) % _dust.size()
+	p.global_position = Vector3(pos.x, 0.05, pos.z)
+	p.amount = int(lerpf(10.0, 28.0, intensity))
+	p.restart()
+	p.emitting = true
+
+
+func _build_dust() -> void:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.vertex_color_use_as_albedo = true
+	mat.albedo_texture = WorldBuilder.soft_dot()
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.5, 0.5)
+	quad.material = mat
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(0.62, 0.55, 0.45, 0.45))
+	ramp.set_color(1, Color(0.62, 0.55, 0.45, 0.0))
+	for i in 4:
+		var p := CPUParticles3D.new()
+		p.emitting = false
+		p.one_shot = true
+		p.explosiveness = 0.9
+		p.lifetime = 1.6
+		p.mesh = quad
+		p.direction = Vector3.UP
+		p.spread = 80.0
+		p.initial_velocity_min = 0.6
+		p.initial_velocity_max = 1.8
+		p.gravity = Vector3(0, 0.25, 0)
+		p.damping_min = 1.5
+		p.damping_max = 2.5
+		p.scale_amount_min = 0.6
+		p.scale_amount_max = 1.8
+		p.color_ramp = ramp
+		p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+		p.emission_sphere_radius = 0.35
+		add_child(p)
+		_dust.append(p)
 
 
 func sparks(pos: Vector3, dir: Vector3, intensity: float) -> void:

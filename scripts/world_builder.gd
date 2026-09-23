@@ -353,7 +353,12 @@ func _build_lists() -> void:
 func _build_crowd(stand_pos: Vector3, yaw: float) -> void:
 	# Rows of painted spectators on the stand tiers: one quad per tier, a
 	# generated texture of heads, hoods and shoulders in the dye palette.
-	for tier in 3:
+	# The crowd grows with the fighter's fame: a vagrant's scrap fills one
+	# row, the Grand Melee packs all three.
+	var tiers := 3
+	if GameState.has_run() and get_tree().current_scene and get_tree().current_scene.name == "Arena":
+		tiers = clampi(1 + int(GameState.run.get("bout", 0)) / 4, 1, 3)
+	for tier in tiers:
 		var q := QuadMesh.new()
 		q.size = Vector2(7.2, 1.0)
 		var m := StandardMaterial3D.new()

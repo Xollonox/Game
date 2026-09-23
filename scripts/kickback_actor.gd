@@ -534,6 +534,11 @@ func _on_stagger_finished() -> void:
 
 func _on_ragdoll_started() -> void:
 	_downed = true
+	# Dust when the body meets the ground, a beat after the fall starts.
+	get_tree().create_timer(0.45).timeout.connect(func():
+		if is_instance_valid(self):
+			CombatFX.dust(get_chest_position(), clampf(worn_weight / 30.0 + 0.4, 0.4, 1.0))
+			CombatFX.play_footstep(get_chest_position(), worn_weight))
 	_attack_timer = 0.0
 	_guarding = false
 	if anim:
