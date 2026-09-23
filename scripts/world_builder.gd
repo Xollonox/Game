@@ -58,6 +58,9 @@ func _process(delta: float) -> void:
 	# Cloth moves: banners lean into a slow breeze so the yard never reads as
 	# a still frame. Rotation only — no deformation, so it costs nothing.
 	_time += delta
+	for c in _crowd:
+		var ph: float = c.get_meta(&"bob")
+		c.position.y += sin(_time * 3.1 + ph) * 0.0009
 	for i in _banners.size():
 		var b := _banners[i]
 		if b == null:
@@ -181,33 +184,227 @@ func _batch_static() -> void:
 
 # -------------------------------------------------------------- ground -----
 func _build_ground() -> void:
-	# Cobbled fighting ring, then a dirt apron out to the wall. Both are thin
-	# discs sitting a hair above the existing ground-plane collision.
-	var cobble := WorldMaterials.get_material("M_Cobble")
-	var ring := CylinderMesh.new()
-	ring.top_radius = RING_RADIUS + 0.6
-	ring.bottom_radius = RING_RADIUS + 0.6
-	ring.height = 0.08
-	ring.radial_segments = 40
-	ring.material = cobble
-	var ring_mi := MeshInstance3D.new()
-	ring_mi.mesh = ring
-	ring_mi.position = Vector3(0.0, 0.02, 0.0)
-	ring_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(ring_mi)
+	# World-space (triplanar) tiling everywhere: a disc's own UVs would stretch
+	# one texture tile across the whole ring. Raked sand-and-straw lists in the
+	# ring, trampled tracks out to the wall, an open mud field beyond it.
+	var parent_ground := get_parent().get_node_or_null("Ground/MeshInstance3D")
+	if parent_ground:
+		parent_ground.visible = false
+	_disc(RING_RADIUS + 0.9, 0.03, _ground_mat("lists", Color(0.86, 0.82, 0.74), 0.34), 48)
+	_disc(WALL_RADIUS + 6.0, 0.015, _ground_mat("tracks", Color(0.72, 0.66, 0.58), 0.24), 48)
+	_disc(420.0, 0.0, _ground_mat("mudfield", Color(0.5, 0.47, 0.4), 0.1), 64)
+	_build_horizon()
+	_build_lists()
 
-	var dirt := WorldMaterials.get_material("M_Mud")
-	var apron := CylinderMesh.new()
-	apron.top_radius = WALL_RADIUS + 6.0
-	apron.bottom_radius = WALL_RADIUS + 6.0
-	apron.height = 0.04
-	apron.radial_segments = 40
-	apron.material = dirt
-	var apron_mi := MeshInstance3D.new()
-	apron_mi.mesh = apron
-	apron_mi.position = Vector3(0.0, 0.008, 0.0)
-	apron_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(apron_mi)
+
+static var _gm_cache: Dictionary = {}
+
+
+static func _ground_mat(set: String, tint: Color, scale: float) -> StandardMaterial3D:
+	var key := "%s_%s" % [set, scale]
+	if _gm_cache.has(key):
+		return _gm_cache[key]
+	var m := StandardMaterial3D.new()
+	m.albedo_color = tint
+	m.uv1_triplanar = true
+	m.uv1_world_triplanar = true
+	m.uv1_scale = Vector3(scale, scale, scale)
+	var base := "res://assets/textures/world/" + set
+	if ResourceLoader.exists(base + "_diff.jpg"):
+		m.albedo_texture = load(base + "_diff.jpg")
+	if ResourceLoader.exists(base + "_nor.jpg"):
+		m.normal_enabled = true
+		m.normal_texture = load(base + "_nor.jpg")
+	if ResourceLoader.exists(base + "_rough.jpg"):
+		m.roughness_texture = load(base + "_rough.jpg")
+		m.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+	_gm_cache[key] = m
+	return m
+
+
+func _disc(radius: float, y: float, mat: Material, segs: int) -> void:
+	var c := CylinderMesh.new()
+	c.top_radius = radius
+	c.bottom_radius = radius
+	c.height = 0.02
+	c.radial_segments = segs
+	c.rings = 1
+	c.material = mat
+	var mi := MeshInstance3D.new()
+	mi.mesh = c
+	mi.position = Vector3(0.0, y, 0.0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
+
+## Soft round sprite for every particle in the world (flame, smoke, dust):
+## untextured quads read as debug squares.
+static var _soft: GradientTexture2D
+
+
+static func soft_dot() -> GradientTexture2D:
+	if _soft:
+		return _soft
+	var g := Gradient.new()
+	g.set_color(0, Color(1, 1, 1, 1))
+	g.set_color(1, Color(1, 1, 1, 0))
+	g.add_point(0.45, Color(1, 1, 1, 0.55))
+	_soft = GradientTexture2D.new()
+	_soft.gradient = g
+	_soft.fill = GradientTexture2D.FILL_RADIAL
+	_soft.fill_from = Vector2(0.5, 0.5)
+	_soft.fill_to = Vector2(1.0, 0.5)
+	_soft.width = 64
+	_soft.height = 64
+	return _soft
+
+
+# ------------------------------------------------------------ horizon -----
+## Rolling hills and a forest line far beyond the village so the world has
+## an edge that fog can swallow, instead of a disc ending in the void.
+func _build_horizon() -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n := 120
+	var noise := FastNoiseLite.new()
+	noise.seed = 77
+	noise.frequency = 0.9
+	var inner := 95.0
+	var outer := 190.0
+	var rows := [[inner, 0.0], [130.0, 1.0], [outer, 0.6]]
+	var verts: Array = []
+	for r in rows.size():
+		var ring: Array = []
+		for i in n + 1:
+			var a := TAU * float(i) / float(n)
+			var h: float = (8.0 + noise.get_noise_2d(cos(a) * 3.0, sin(a) * 3.0) * 14.0) * float(rows[r][1])
+			var rad: float = rows[r][0]
+			ring.append(Vector3(sin(a) * rad, maxf(h, 0.0) - 0.2, -cos(a) * rad))
+		verts.append(ring)
+	for r in rows.size() - 1:
+		for i in n:
+			var a0: Vector3 = verts[r][i]
+			var a1: Vector3 = verts[r][i + 1]
+			var b0: Vector3 = verts[r + 1][i]
+			var b1: Vector3 = verts[r + 1][i + 1]
+			for v in [a0, b0, a1, a1, b0, b1]:
+				st.add_vertex(v)
+	st.generate_normals()
+	var hills := MeshInstance3D.new()
+	hills.mesh = st.commit()
+	var hm := StandardMaterial3D.new()
+	hm.albedo_color = Color(0.2, 0.22, 0.17)
+	hm.roughness = 1.0
+	hm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	hills.material_override = hm
+	hills.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(hills)
+	# Forest belt: one multimesh of low cone trees.
+	var cone := CylinderMesh.new()
+	cone.top_radius = 0.0
+	cone.bottom_radius = 1.6
+	cone.height = 7.0
+	cone.radial_segments = 7
+	cone.rings = 1
+	var tm := StandardMaterial3D.new()
+	tm.albedo_color = Color(0.13, 0.17, 0.12)
+	tm.roughness = 1.0
+	cone.material = tm
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = cone
+	mm.instance_count = 420
+	for i in mm.instance_count:
+		var a := _rng.randf() * TAU
+		var r := _rng.randf_range(48.0, 110.0)
+		var sc := _rng.randf_range(0.7, 1.6)
+		var t := Transform3D(Basis().scaled(Vector3(sc, sc * _rng.randf_range(0.8, 1.3), sc)),
+			Vector3(sin(a) * r, 3.4 * sc, -cos(a) * r))
+		mm.set_instance_transform(i, t)
+	var trees := MultiMeshInstance3D.new()
+	trees.multimesh = mm
+	trees.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(trees)
+
+
+# -------------------------------------------------------------- lists -----
+## The tournament proper: a waist-high list fence around the ring with the
+## two entrances (gate side and the fighters' side) left open, pennant poles,
+## and a painted crowd filling the stands.
+func _build_lists() -> void:
+	var lists := Node3D.new()
+	lists.name = "Lists"
+	add_child(lists)
+	var r := RING_RADIUS + 0.7
+	var n := 30
+	for i in n:
+		var a := TAU * float(i) / float(n)
+		var rel := fposmod(a, TAU)
+		if rel < 0.22 or rel > TAU - 0.22 or absf(rel - PI) < 0.22:
+			continue
+		var pos := Vector3(sin(a) * r, 0.0, -cos(a) * r)
+		place("fence_section", pos, a, lists, true, 0.95)
+	for i in 8:
+		var a := TAU * (float(i) + 0.5) / 8.0
+		var pos := Vector3(sin(a) * (r + 0.5), 0.0, -cos(a) * (r + 0.5))
+		_banners.append(place("banner_red" if i % 2 == 0 else "banner_blue", pos, a + PI, lists, true, 0.85, "", true))
+
+
+func _build_crowd(stand_pos: Vector3, yaw: float) -> void:
+	# Rows of painted spectators on the stand tiers: one quad per tier, a
+	# generated texture of heads, hoods and shoulders in the dye palette.
+	for tier in 3:
+		var q := QuadMesh.new()
+		q.size = Vector2(7.2, 1.0)
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = _crowd_texture(tier)
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		m.alpha_scissor_threshold = 0.5
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.roughness = 1.0
+		q.material = m
+		var mi := MeshInstance3D.new()
+		mi.mesh = q
+		var back := Vector3(sin(yaw + PI), 0, -cos(yaw + PI))
+		mi.position = stand_pos + Vector3.UP * (1.25 + tier * 0.62) - back * (0.3 - tier * 0.55)
+		mi.rotation.y = yaw + PI
+		mi.set_meta(&"bob", _rng.randf() * TAU)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+		_crowd.append(mi)
+
+
+var _crowd: Array[MeshInstance3D] = []
+
+
+func _crowd_texture(seed: int) -> ImageTexture:
+	var w := 512
+	var h := 72
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 900 + seed
+	var dyes := [Color(0.45, 0.28, 0.18), Color(0.52, 0.16, 0.12), Color(0.2, 0.26, 0.42), Color(0.55, 0.47, 0.2),
+		Color(0.25, 0.19, 0.14), Color(0.36, 0.36, 0.34), Color(0.24, 0.31, 0.2), Color(0.62, 0.56, 0.45)]
+	var x := 4
+	while x < w - 10:
+		var bw := rng.randi_range(14, 20)
+		var body: Color = dyes[rng.randi() % dyes.size()] * rng.randf_range(0.7, 1.0)
+		body.a = 1.0
+		var top := rng.randi_range(18, 30)
+		img.fill_rect(Rect2i(x, top + 10, bw, h - top - 10), body)
+		var skin := Color(0.72, 0.55, 0.44) * rng.randf_range(0.75, 1.0)
+		skin.a = 1.0
+		var hr := 5
+		var cx := x + bw / 2
+		for yy in range(-hr, hr + 1):
+			for xx in range(-hr, hr + 1):
+				if xx * xx + yy * yy <= hr * hr:
+					img.set_pixel(cx + xx, top + 4 + yy, skin)
+		if rng.randf() < 0.4:
+			img.fill_rect(Rect2i(cx - 6, top - 3, 12, 5), body * 0.8)
+		x += bw + rng.randi_range(-3, 3)
+	return ImageTexture.create_from_image(img)
 
 
 # ----------------------------------------------------------- perimeter -----
@@ -259,6 +456,7 @@ func _build_stands() -> void:
 		var pos := Vector3(sin(a) * 11.6, 0.0, -cos(a) * 11.6)
 		var yaw := a + PI
 		place("stand_section", pos, yaw, stands, true)
+		_build_crowd(pos, yaw)
 		place("stand_roof", pos + Vector3(sin(a) * 0.9, 0.0, -cos(a) * 0.9), yaw, stands)
 		_banners.append(place("banner_red" if spec[1] < 0.0 else "banner_blue",
 			pos + Vector3(sin(a + 0.35) * 1.9, 0.0, -cos(a + 0.35) * 1.9), yaw, stands, true,
@@ -428,6 +626,7 @@ func _fire_particles(parent: Node3D, pos: Vector3) -> void:
 	flame_mat.vertex_color_use_as_albedo = true
 	flame_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	flame_mat.billboard_keep_scale = true
+	flame_mat.albedo_texture = soft_dot()
 	flame_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	flame_mat.disable_receive_shadows = true
 	var quad := QuadMesh.new()
@@ -460,6 +659,7 @@ func _fire_particles(parent: Node3D, pos: Vector3) -> void:
 	smoke_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	smoke_mat.billboard_keep_scale = true
 	smoke_mat.disable_receive_shadows = true
+	smoke_mat.albedo_texture = soft_dot()
 	var smoke_quad := QuadMesh.new()
 	smoke_quad.size = Vector2.ONE
 	smoke_quad.material = smoke_mat
@@ -494,6 +694,7 @@ func _build_dust() -> void:
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	mat.billboard_keep_scale = true
 	mat.disable_receive_shadows = true
+	mat.albedo_texture = soft_dot()
 	var quad := QuadMesh.new()
 	quad.size = Vector2.ONE
 	quad.material = mat

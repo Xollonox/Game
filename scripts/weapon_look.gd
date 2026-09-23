@@ -27,9 +27,9 @@ static func get_material(slot: String) -> Material:
 	var m: StandardMaterial3D = null
 	match slot:
 		"W_Steel":
-			m = _tex_mat("res://assets/textures/character/plate", Color(0.78, 0.79, 0.8), 0.26, 0.75, 2.0)
+			m = _tex_mat("res://assets/textures/character/plate", Color(0.86, 0.87, 0.88), 0.3, 0.5, 2.0)
 		"W_Iron":
-			m = _tex_mat("res://assets/textures/character/iron", Color(0.55, 0.53, 0.5), 0.5, 0.65, 3.0)
+			m = _tex_mat("res://assets/textures/character/iron", Color(0.62, 0.6, 0.57), 0.5, 0.45, 3.0)
 		"W_Brass":
 			m = StandardMaterial3D.new()
 			m.albedo_color = Color(0.72, 0.54, 0.26)

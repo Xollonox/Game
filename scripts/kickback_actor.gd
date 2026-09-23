@@ -132,6 +132,8 @@ func _ready() -> void:
 		_controller.recovery_finished.connect(_on_recovery_finished)
 	if anim:
 		anim.play.call_deferred(_stance_anim)
+		# No two fighters breathe in step.
+		anim.seek.call_deferred(_rng.randf() * 2.0, true)
 
 	# Bodies are built in PhysicsRigBuilder._ready(), a frame after add.
 	while _rig_builder.get_bodies().is_empty():

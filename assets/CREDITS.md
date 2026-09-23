@@ -38,6 +38,7 @@ All textures are downscaled to 1024 px JPEG for the web budget (documented here 
 - `cloth` — [fabric_pattern_07](https://polyhaven.com/a/fabric_pattern_07)
 - `roof` — [clay_roof_tiles](https://polyhaven.com/a/clay_roof_tiles)
 - `straw` — [thatch_roof_angled](https://polyhaven.com/a/thatch_roof_angled)
+- `lists` — [raked_dirt](https://polyhaven.com/a/raked_dirt), `tracks` — [muddy_tracks](https://polyhaven.com/a/muddy_tracks), `mudfield` — [brown_mud_02](https://polyhaven.com/a/brown_mud_02) (tournament ground, applied world-space triplanar)
 - **License:** CC0 1.0 Universal (https://polyhaven.com/license)
 
 ### ambientCG (CC0)

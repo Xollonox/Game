@@ -125,7 +125,7 @@ func _build_ui() -> void:
 	rule_row.add_child(UITheme.rule(340.0, UITheme.BRASS))
 
 	var sub := Label.new()
-	sub.text = "Sixteen bouts, one body, no second chances above ground"
+	sub.text = "Seventeen bouts, one body, no second chances above ground"
 	sub.add_theme_font_override("font", UITheme.body())
 	sub.add_theme_font_size_override("font_size", 21)
 	sub.add_theme_color_override("font_color", UITheme.INK_DIM)

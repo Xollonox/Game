@@ -13,8 +13,8 @@ extends Node3D
 ## you at once) and the wiring to the HUD.
 
 const FIGHTER := preload("res://scenes/dummy.tscn")
-const CAM_HEIGHT := 2.3
-const CAM_DISTANCE := 5.4
+const CAM_HEIGHT := 1.85
+const CAM_DISTANCE := 4.6
 const CAM_LAG := 7.0
 const CAM_ZOOM_MIN := 2.8
 const CAM_ZOOM_MAX := 10.0

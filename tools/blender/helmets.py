@@ -45,8 +45,10 @@ def shell(name, arm, body, material, head, rx, ry, rz, cz, bottom, cut=None, poi
             th = -math.pi + 2 * math.pi * i / n
             zb = bottom(th)
             z = top + (zb - top) * s
-            if z >= cz:
-                k = min((z - cz) / rz, 1.0)
+            if r == 0:
+                f = 0.0
+            elif z >= cz:
+                k = min((z - cz) / max(top - cz, 1e-3), 1.0)
                 f = math.sqrt(max(1.0 - k * k, 0.0))
                 if point:
                     f = f ** (1.0 + point) if k > 0 else f
@@ -169,10 +171,12 @@ def build(arm, body, MAT):
     W.finish(shell("H_Skullcap", arm, body, iron, head + Vector((0, 0, cl)), hrx + cl, hry + cl, 0.12 + cl, cz + 0.01,
                    lambda th: cz + 0.005, rows=12), 1.5, uv="box")
 
-    # Kettle hat: rounded skull + broad drooping brim.
-    k = shell("H_Kettle", arm, body, iron, head + Vector((0, 0, cl + 0.01)), hrx + cl + 0.005, hry + cl + 0.005,
-              0.13 + cl, cz + 0.02, lambda th: cz + 0.02, rows=12)
-    W.join_into(k, brim("kbrim", arm, body, iron, head, hrx + cl + 0.005, hry + cl + 0.005, cz + 0.02, 0.075, 0.045))
+    # Kettle hat (chapel de fer): a low ridged crown and a broad brim that
+    # slopes down ~20 degrees, with a rolled edge.
+    k = shell("H_Kettle", arm, body, iron, head + Vector((0, 0, cl + 0.035)), hrx + cl + 0.006, hry + cl + 0.006,
+              0.1, cz + 0.02, lambda th: cz + 0.02, point=0.25, rows=12)
+    W.join_into(k, brim("kbrim", arm, body, iron, head, hrx + cl + 0.006, hry + cl + 0.006, cz + 0.02, 0.07, 0.028))
+    W.join_into(k, brim("kroll", arm, body, iron, head, hrx + cl + 0.074, hry + cl + 0.074, cz - 0.006, 0.008, 0.012))
     W.finish(k, 1.5, uv="box")
 
     # Bascinet: pointed skull dropping to the jaw at the sides and nape at the

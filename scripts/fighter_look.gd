@@ -126,6 +126,10 @@ static func material_for(slot: String, spec: Dictionary, colors: Dictionary) -> 
 	if _mat_cache.has(key):
 		return _mat_cache[key]
 	var m := _build(slot, spec, tint)
+	# Cloth and mail are single sheets: draw both faces so a collar or cuff
+	# never shows a black hole into the garment.
+	if m is StandardMaterial3D and (slot.begins_with("G_") or slot == "A_Mail"):
+		(m as StandardMaterial3D).cull_mode = BaseMaterial3D.CULL_DISABLED
 	_mat_cache[key] = m
 	return m
 
@@ -156,7 +160,8 @@ static func _build(slot: String, spec: Dictionary, tint: Color) -> Material:
 			var m := StandardMaterial3D.new()
 			var tone: String = spec.get("skin", "light")
 			m.albedo_texture = _tex("skin_%s_diff.jpg" % tone)
-			m.albedo_color = tint
+			# Slightly desaturated and cooled: the source skin is stylised warm.
+			m.albedo_color = tint * Color(0.95, 0.9, 0.88)
 			m.normal_enabled = true
 			m.normal_texture = _tex("skin_nor.jpg")
 			m.roughness_texture = _tex("skin_rough.jpg")
@@ -197,12 +202,12 @@ static func _build(slot: String, spec: Dictionary, tint: Color) -> Material:
 		"G_Leather":
 			return _pbr("leather", Color(0.95, 0.88, 0.82), 0.7, 0.0, 1.2)
 		"A_Mail":
-			var ml := _pbr("mail", Color(0.72, 0.72, 0.74), 0.5, 0.6, 1.6)
+			var ml := _pbr("mail", Color(0.6, 0.6, 0.61), 0.55, 0.55, 0.62)
 			ml.metallic_specular = 0.7
 			return ml
 		"A_Plate":
-			var pl := _pbr("plate", Color(0.7, 0.71, 0.73), 0.34, 0.72, 1.0)
-			pl.metallic_specular = 0.75
+			var pl := _pbr("plate", Color(0.66, 0.67, 0.68), 0.46, 0.6, 1.0)
+			pl.metallic_specular = 0.5
 			pl.rim_enabled = true
 			pl.rim = 0.2
 			return pl
