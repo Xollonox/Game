@@ -141,8 +141,9 @@ Anyone can kick (V / touch KICK); no attacks while stumbling.
 | Layer (bit) | Contents | Mask |
 |---|---|---|
 | 1 (1) | environment | — |
-| 2 (2) | weapons, dropped weapons | env · weapons · ragdoll |
+| 2 (2) | weapons, dropped weapons, armour items | env · weapons · ragdoll |
 | 4 (8) | active-ragdoll bodies | env · weapons · 3 · ragdoll |
+| 6 (32) | severed limbs | env · weapons · ragdoll · limbs |
 
 A fighter's own bodies are collision exceptions for his weapons (and his
 weapon for his shield). The root is a Node3D with no collider, so fighters
@@ -157,7 +158,79 @@ xvfb-run -a godot --path . res://tests/injury_test.tscn    # regional wounds and
 xvfb-run -a godot --path . res://tests/item_test.tscn      # disarm, drop, rest harmlessly, pickup without teleport, AI retrieval
 ```
 
-## Not done yet
+## Blood (BleedingSource)
 
-Dismemberment, wound-attached blood emitters with pooled floor decals, and
-armour as world items are the next stages (see the PR description).
+Every flesh wound attaches a `BleedingSource` to the struck rig body at the
+exact contact point, facing out of the wound, so it rides the ragdoll. It
+reads its region's bleed rate from the InjurySystem:
+
+- the impact spray, thrown with the blow and off the surface;
+- drops at a rate proportional to the bleed, and for arterial wounds (neck,
+  thigh, a stump) heartbeat spurts that weaken with blood volume;
+- each landing is ray-marched (five segments, ignoring the wounded man's own
+  bodies) to the surface it hits — floor, wall, another body — and marked
+  with a pooled splat when the blood gets there (`CombatFX.splat_at`, pooled
+  quads: no depth decals needed on the Compatibility renderer, which is why
+  antzGames' decal node was studied but not vendored).
+
+Budgets: 14 active sources (6 on low quality), splats pooled (36) with a
+lifetime. With Blood off (`GameState.blood` → `CombatFX.blood_enabled`) no
+emitter, splat, overlay or gory cap is created; wounds still count.
+
+## Dismemberment
+
+`tools/blender/segments.py` cuts every skinned mesh of the fighter along
+the limb segments (dominant bone weight per face, corner normals frozen so
+the join is invisible): head, upper arm, forearm, hand, thigh, shin, foot per
+side, core. `Dismemberment.qualifies` lets a zone go (neck, shoulder,
+forearm, wrist, hip, knee) only to a sharp edge (cut ≥ 0.9) leading well
+(quality ≥ 0.65) into flesh the armour let ≥ 60 % of the edge through (mail
+and plate never do), with enough flesh damage for the zone into tissue
+already badly cut — or one blow 1.6× the threshold.
+
+On severing: the segments are hidden on the fighter; Kickback stops driving
+the limb (`SpringResolver.severed`), its joint is removed and the fighter's
+skeleton freezes those bones (`PhysicsRigSync.freeze_rigs`) so stump skin
+never stretches after the flying limb; a `DetachedLimb` re-skins the same
+segment meshes onto a copied skeleton that follows the freed bodies (own
+layer 6, no longer a target, sleeps at rest, 10 at most); flesh-and-bone caps
+close both faces; an arterial BleedingSource starts at the stump; held items
+fall; a lost leg puts him down; a severed neck kills.
+
+## Armour as equipment
+
+`ArmourItem` is a real rigid body showing the garment's own meshes (from the
+fighter model at rest, recentred; box collider; mass = worn weight). The
+arena lays a few pieces for the current standing, plus a spare weapon, on a
+bench on the fighters' side of the lists. `equip_armour` plays `Equip_Head`
+/ `Equip_Body`, swaps out whatever filled the slot (it is set down as an
+item), re-dresses the fighter and updates worn weight, gait and body mass;
+mail and plate need a gambeson first. A crushing blow can knock a loose
+helmet (kettle, cap, coif, hood) off as a flying item. The player's run
+follows what he actually wears (`Shop.sync_from_garments`).
+
+## Armour hits
+
+Plate or mail turning a blow reflects the blade's velocity into the surface
+and softens the hand for a moment: the edge visibly glances off instead of
+the pose pushing it through.
+
+## Tests (all)
+
+```bash
+xvfb-run -a godot --path . res://tests/contact_test.tscn
+xvfb-run -a godot --path . res://tests/balance_test.tscn
+xvfb-run -a godot --path . res://tests/injury_test.tscn
+xvfb-run -a godot --path . res://tests/item_test.tscn
+xvfb-run -a godot --path . res://tests/blood_test.tscn
+xvfb-run -a godot --path . res://tests/sever_test.tscn
+xvfb-run -a godot --path . res://tests/armour_test.tscn
+```
+
+## Known limits
+
+- The authored front kick lands lower than keyed (knee height), and the
+  get-up's hand push-off still peaks near 8 m/s.
+- Fights run longer than before touch damage was removed; AI spacing and
+  attack animation reach are the next tuning pass.
+- NPCs retrieve weapons but do not yet pick armour up.

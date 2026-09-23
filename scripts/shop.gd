@@ -160,6 +160,31 @@ static func ensure(run: Dictionary) -> void:
 		run["purse"] = STARTING_PURSE + int(run.get("renown", 0))
 
 
+## Re-derives the run's worn pieces from what the fighter actually wears now
+## (he put something on in the yard, or had a helmet knocked off). Pieces
+## taken off in the yard stay in the yard.
+static func sync_from_garments(run: Dictionary, garments: Array) -> void:
+	ensure(run)
+	var equip := {}
+	for id: String in ARMOUR:
+		var gs: Array = ARMOUR[id][2]
+		if gs.size() > 0 and gs.all(func(g): return g in garments):
+			var slot: String = ARMOUR[id][1]
+			if not equip.has(slot) or (ARMOUR[equip[slot]][2] as Array).size() < gs.size():
+				equip[slot] = id
+	if not equip.has("body"):
+		equip["body"] = "shirt"
+	var owned: Array = run["owned"]
+	for slot in (run["equip"] as Dictionary):
+		var old: String = run["equip"][slot]
+		if equip.get(slot, "") != old and old != "shirt":
+			owned.erase(old)
+	for slot in equip:
+		if not equip[slot] in owned:
+			owned.append(equip[slot])
+	run["equip"] = equip
+
+
 static func garments_for(run: Dictionary) -> Array[String]:
 	ensure(run)
 	var equip: Dictionary = run["equip"]

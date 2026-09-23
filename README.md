@@ -42,7 +42,8 @@ damage from its own measured contact speed.
 
 - **Characters** (`tools/blender/build_fighter.py`): Quaternius Universal Base Characters human (CC0) with face, hair and beard, UAL1 + UAL2 clips retargeted in world space, and an original IK-authored melee library (`melee_anims.py`) — stances, guards, cuts, thrusts, guarded gaits, flinches, stagger, evade and get-ups per weapon family, built from HEMA body mechanics.
 - **Wardrobe** (`wardrobe.py`, `helmets.py`): shirt, tunic, hose, shoes, boots, gambeson, haubergeon, mail coif, brigandine, full harness and six helmets generated around the body; covered skin zones are hidden.
-- **Wound model** (`KickbackActor.receive_weapon_hit`): cut / pierce / blunt channels against layered armour coverage (`scripts/armory.gd`), momentum knock scaled by worn weight, bleeding, sparks on steel.
+- **Wounds** (`InjurySystem`, `Dismemberment`, `BleedingSource`): 17 body regions with tissue, trauma, bleeding and fractures, and physical consequences (a weak arm, a limp, concussion). Qualified cuts sever limbs along Blender-cut segments. Blood comes from the wound itself and lands where it falls; the Blood setting turns all of it off.
+- **Equipment in the world**: weapons are torn loose, fall and can be picked up again, by the player (`E`) or a disarmed opponent. Armour lies on the bench in the lists and can be put on; a crushing blow can knock a helmet off.
 - **Arsenal** (`tools/blender/build_weapons.py`): arming sword, longsword, falchion, rondel dagger, bearded axe, flanged mace, cudgel, war spear, heater shield — each with measured mass, centre of mass and per-part collision boxes, driven as a real body by `PhysicsWeapon`.
 
 ## The world

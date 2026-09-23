@@ -73,6 +73,13 @@ func _ready() -> void:
 		touch_controls.camera_dragged.connect(_on_camera_dragged)
 	CombatFX.shake_requested.connect(_on_shake_requested)
 	_spawn_foes()
+	_stock_bench()
+	if player:
+		# Kit changed in the yard (a helm put on, one knocked off): the run
+		# follows what he actually wears.
+		player.armour_changed.connect(func(_a, _id):
+			Shop.sync_from_garments(GameState.run, player.spec.get("garments", []))
+			GameState.save_run())
 
 	hud.restart_requested.connect(_on_restart)
 	hud.leave_requested.connect(_leave_to_menu)
@@ -83,6 +90,42 @@ func _ready() -> void:
 	_cam_yaw = 0.0
 	camera.global_position = Vector3(6, 3.0, 8)
 	_begin_intro()
+
+
+## The armourer's bench on the fighters' side of the lists: a few pieces fit
+## for this standing and a spare weapon, lying there to be taken up — not
+## loot scattered about, the gear laid out where fighters prepare.
+const BENCH_POS := Vector3(6.3, 0.0, 5.3)
+
+
+func _stock_bench() -> void:
+	var world := find_child("World", true, false)
+	if world == null or not world.has_method("place"):
+		return
+	world.place("bench", BENCH_POS, -0.9, world, true)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(GameState.run.get("seed", 1)) + int(encounter.get("bout", 0)) * 131
+	var rank := Tournament.rank_for_bout(int(encounter.get("bout", 0)))
+	var pool: Array[String] = []
+	for id: String in Shop.ARMOUR:
+		var r := Shop.min_rank(id)
+		if r <= rank + 1 and r >= rank - 1 and Shop.price(id) > 0 and not Shop.is_equipped(GameState.run, id):
+			pool.append(id)
+	var along := Vector3(cos(0.9), 0.0, sin(0.9))  # the bench's length
+	for i in mini(3, pool.size()):
+		var id: String = pool[rng.randi() % pool.size()]
+		pool.erase(id)
+		var it := ArmourItem.create(id)
+		if not it:
+			continue
+		add_child(it)
+		it.global_position = BENCH_POS + along * (i - 1) * 0.45 + Vector3.UP * 0.75
+		it.rotation.y = rng.randf() * TAU
+	var spare := PhysicsWeapon.create(["cudgel", "rondel_dagger", "falchion", "war_spear"][rng.randi() % 4])
+	add_child(spare)
+	spare.global_position = BENCH_POS - along * 0.1 + Vector3(0.35, 0.3, 0.35)
+	spare.rotation = Vector3(PI * 0.5, rng.randf() * TAU, 0.0)
+	spare.release()
 
 
 func _make_encounter() -> Dictionary:

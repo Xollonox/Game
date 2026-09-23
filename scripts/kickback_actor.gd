@@ -18,6 +18,7 @@ signal wounded(actor: KickbackActor, info: Dictionary)
 signal yielded_signal(actor: KickbackActor)
 signal weapon_dropped(actor: KickbackActor, w: PhysicsWeapon)
 signal severed_limb(actor: KickbackActor, region: String)
+signal armour_changed(actor: KickbackActor, item_id: String)
 signal weapon_taken(actor: KickbackActor, w: PhysicsWeapon)
 
 const WALK_SPEED := 2.5
@@ -366,6 +367,127 @@ func _update_pickup(delta: float) -> void:
 		weapon_taken.emit(self, w)
 
 
+# ------------------------------------------------------------- armour ------
+var _equip_target: ArmourItem
+var _equip_t := 0.0
+
+## Helmets a hard enough blow can knock off (strapped close helms stay).
+const LOOSE_HELMS := ["H_Kettle", "H_Skullcap", "H_PaddedCoif", "G_Hood", "G_Cap"]
+
+
+## Why [param it] cannot be put on right now ("" if it can).
+func equip_block(it: ArmourItem) -> String:
+	if not is_instance_valid(it):
+		return "gone"
+	var need: String = Shop.ARMOUR[it.item_id][5]
+	if need == "body:gambeson" and not "A_Gambeson" in (spec.get("garments", []) as Array):
+		return "must go over a gambeson"
+	return ""
+
+
+## Puts on the piece lying in [param it]: a short dressing clip (helm to the
+## head, or straps across the body), then the kit changes — meshes, weight,
+## protection, balance mass — and whatever filled that slot drops at his feet.
+func equip_armour(it: ArmourItem) -> bool:
+	if equip_block(it) != "" or _equip_target or _pickup_target or _downed or _dead or is_swinging():
+		return false
+	_equip_target = it
+	_equip_t = 0.0
+	var clip := "Equip_Head" if it.slot() in ["head", "neck"] else "Equip_Body"
+	_attack_timer = 1.2
+	_attack_move = {"move_scale": 0.0}
+	if anim and anim.has_animation(clip):
+		anim.speed_scale = 1.0
+		anim.play(clip, 0.2)
+	return true
+
+
+func _update_equip(delta: float) -> void:
+	if not _equip_target:
+		return
+	_equip_t += delta
+	var it := _equip_target
+	if not is_instance_valid(it) or _downed or _dead:
+		_equip_target = null
+		return
+	if _equip_t < 0.55:
+		return
+	_equip_target = null
+	var id := it.item_id
+	var slot := it.slot()
+	var worn: Array = (spec.get("garments", []) as Array).duplicate()
+	# Take off what filled the slot; it goes on the ground.
+	for other: String in Shop.ARMOUR:
+		if other == id or Shop.slot_of(other) != slot:
+			continue
+		var gs: Array = Shop.ARMOUR[other][2]
+		if gs.all(func(g): return g in worn):
+			for g in gs:
+				worn.erase(g)
+			if Shop.price(other) > 0:
+				_spawn_armour(other, global_position + global_basis.z * 0.35 + Vector3.UP * 0.4, Vector3.ZERO)
+	for g in Shop.ARMOUR[id][2]:
+		if not g in worn:
+			worn.append(g)
+	it.queue_free()
+	_set_garments(worn)
+	armour_changed.emit(self, id)
+
+
+## Re-dresses with [param worn]: meshes, worn weight, gait, body mass.
+func _set_garments(worn: Array) -> void:
+	var old_w := worn_weight
+	spec["garments"] = worn
+	FighterLook.apply(model, spec)
+	worn_weight = Armory.worn_weight(worn)
+	move_speed = WALK_SPEED * clampf(1.0 - worn_weight * 0.006, 0.68, 1.0)
+	var k := (1.0 + worn_weight / 90.0) / (1.0 + old_w / 90.0)
+	for b: RigidBody3D in get_rig_bodies().values():
+		if b.has_meta(&"kickback_actor"):
+			b.mass *= k
+	if _blood and not _wounds.is_empty():
+		# The wound overlay is set per visible mesh; re-apply it to new ones.
+		for node in model.find_children("*", "MeshInstance3D", true, false):
+			var mi := node as MeshInstance3D
+			if mi.visible and not mi.name.begins_with("Hair") and mi.name != "Eyes" and mi.name != "Eyebrows":
+				mi.material_overlay = _blood
+
+
+func _spawn_armour(id: String, pos: Vector3, vel: Vector3) -> ArmourItem:
+	var it := ArmourItem.create(id)
+	if not it:
+		return null
+	get_parent().add_child(it)
+	it.global_position = pos
+	it.linear_velocity = vel
+	it.angular_velocity = Vector3(randf_range(-6, 6), randf_range(-6, 6), randf_range(-6, 6)) * (vel.length() / 4.0)
+	return it
+
+
+## A crushing blow to the head can knock a loose helmet off.
+func _maybe_knock_helmet(force: float, dir: Vector3) -> void:
+	var worn: Array = spec.get("garments", [])
+	for h in LOOSE_HELMS:
+		if not h in worn:
+			continue
+		if force < CombatProfiles.CRUSHING_FORCE * 1.15:
+			return
+		var id := ""
+		for aid: String in Shop.ARMOUR:
+			if Shop.ARMOUR[aid][2] == [h]:
+				id = aid
+		if id == "":
+			return
+		var w := worn.duplicate()
+		w.erase(h)
+		_set_garments(w)
+		var head: RigidBody3D = get_rig_bodies().get("Head")
+		var at := head.global_position + Vector3.UP * 0.12 if head else global_position + Vector3.UP * 1.7
+		_spawn_armour(id, at, dir.normalized() * clampf(force * 0.18, 2.0, 6.0) + Vector3.UP * 1.5)
+		armour_changed.emit(self, "")
+		return
+
+
 ## Held weapons count toward the balance centre of mass.
 func _register_held_mass() -> void:
 	if not _controller:
@@ -443,6 +565,7 @@ func _physics_process(delta: float) -> void:
 	if _downed:
 		return
 	_update_pickup(delta)
+	_update_equip(delta)
 
 	var moving := move_dir.length_squared() > 0.01
 	var speed := move_speed * (SPRINT_SPEED / WALK_SPEED if sprinting else 1.0) * _gait_scale() * injury_speed
@@ -732,6 +855,8 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 		"speed": speed, "part": info.get("part", ""), "struck": prot["struck"], "kind": kind, "rig_name": rig_name,
 		"hard": hard, "region": region, "fractured": inj["fractured_now"], "lethal": inj["lethal"]}
 	result["severed"] = sever
+	if region == "head" and kind == "blunt" or (region == "head" and force >= CombatProfiles.CRUSHING_FORCE * 1.4):
+		_maybe_knock_helmet(force, dir)
 	if sever:
 		Dismemberment.sever(self, region, point, dir, clampf(force * 1.6, 4.0, 30.0))
 		severed_limb.emit(self, region)
