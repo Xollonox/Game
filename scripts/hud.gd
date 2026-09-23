@@ -699,10 +699,14 @@ func show_intro(enc: Dictionary, run: Dictionary, specs: Array) -> void:
 
 
 func hide_intro() -> void:
-	var t := create_tween()
-	t.tween_property(_overlay, "modulate:a", 0.0, 0.4)
-	t.tween_callback(_clear_overlay)
-	t.tween_callback(func(): _overlay.modulate.a = 1.0)
+	# Fade out only what the intro put up: anything shown after this call (a
+	# quick verdict) must survive it.
+	for c in _overlay.get_children():
+		if c is CanvasItem:
+			var t := create_tween()
+			t.tween_property(c, "modulate:a", 0.0, 0.4)
+			t.tween_callback(c.queue_free)
+	_overlay.modulate.a = 1.0
 
 
 func show_fight_hud(first_bout: bool) -> void:

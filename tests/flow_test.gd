@@ -72,7 +72,7 @@ func _run() -> void:
 		e._take_damage(999.0)
 		e.last_attacker = arena.player
 	await _wait(3.5)
-	await _wait(1.8)
+	await _wait(6.0)
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png("/tmp/flow_victory.png")
 	_check(int(GameState.run["bout"]) == 3, "victory advances the bout (%d)" % int(GameState.run["bout"]))

@@ -338,7 +338,9 @@ func _victory() -> void:
 			mine.append(e.spec)
 	var renown: int = encounter.get("renown", 10)
 	GameState.bout_won(renown, mine)
-	await get_tree().create_timer(2.2).timeout
+	await get_tree().create_timer(2.2, true, false, true).timeout
+	if not is_inside_tree():
+		return
 	hud.show_victory(encounter, GameState.run, fallen_specs, weapons, player.spec)
 
 
