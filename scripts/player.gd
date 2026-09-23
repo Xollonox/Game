@@ -14,10 +14,11 @@ var camera: Camera3D
 var touch_controls: TouchControls
 var lock_target: KickbackActor
 var lock_enabled := true
+var _yield_hold := 0.0
 
 
 func _physics_process(delta: float) -> void:
-	if is_dead():
+	if is_dead() or yielded:
 		move_dir = Vector3.ZERO
 		return
 	var input_2d := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
@@ -41,6 +42,13 @@ func _physics_process(delta: float) -> void:
 		attack("thrust", {"dir": "thrust"})
 	elif Input.is_key_pressed(KEY_X) and not is_swinging():
 		evade()
+	# Hold G to yield — only when badly hurt, and it costs the bout.
+	if Input.is_key_pressed(KEY_G) and health < max_health * 0.5 and not yielded:
+		_yield_hold += delta
+		if _yield_hold > 1.0:
+			yield_fight()
+	else:
+		_yield_hold = 0.0
 
 
 func _line_from_input(input_2d: Vector2) -> String:
@@ -59,7 +67,7 @@ func _update_lock() -> void:
 	var best_d := 7.0
 	for node in get_tree().get_nodes_in_group("fighters"):
 		var a := node as KickbackActor
-		if a == null or a == self or a.is_dead():
+		if a == null or a == self or a.is_dead() or a.yielded:
 			continue
 		var d := global_position.distance_to(a.global_position)
 		if a == lock_target:

@@ -241,6 +241,9 @@ func _controls_panel() -> Control:
 		["Thrust", "F  ·  middle click  ·  THRUST"],
 		["Guard", "hold C  ·  right mouse  ·  GUARD"],
 		["Heavy blow", "cut while sprinting"],
+		["Step back", "X"],
+		["Yield", "hold G when badly hurt: lose the bout, keep your life"],
+		["Mercy", "a beaten man may yield — spare him and he owes the Hollow nothing"],
 		["Camera", "Q / E  ·  middle-drag  ·  wheel  ·  Tab: lock on/off"],
 		["Pause", "Esc"],
 	]

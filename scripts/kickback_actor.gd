@@ -15,6 +15,7 @@ extends Node3D
 signal landed_hit(target_name: String, profile_name: String)
 signal died(actor: KickbackActor)
 signal wounded(actor: KickbackActor, info: Dictionary)
+signal yielded_signal(actor: KickbackActor)
 
 const WALK_SPEED := 2.5
 const SPRINT_SPEED := 4.6
@@ -65,6 +66,9 @@ var kills := 0
 ## False while a fighter is still waiting to join (marching in, holding by the
 ## gate): his weapon collides but wounds no one.
 var weapons_live := true
+## Out of the fight on his knees, weapon dropped. Still alive — striking him
+## now kills him, and a kill is a debt the Hollow collects.
+var yielded := false
 var last_attacker: KickbackActor
 
 var _dead := false
@@ -517,6 +521,39 @@ func _take_damage(dmg: float) -> void:
 	health = maxf(0.0, health - dmg)
 	if health <= 0.0 and not _dead:
 		_die()
+	elif not yielded and not _dead and health < max_health * 0.22 and _wants_to_yield():
+		yield_fight()
+
+
+## Enemies decide for themselves (see Enemy); the player yields by choice.
+func _wants_to_yield() -> bool:
+	return false
+
+
+func is_out() -> bool:
+	return _dead or yielded
+
+
+## Kneels, drops the weapon, and asks for mercy.
+func yield_fight() -> void:
+	if yielded or _dead:
+		return
+	yielded = true
+	_guarding = false
+	_attack_timer = 0.0
+	weapons_live = false
+	bleed *= 0.3
+	for w in [weapon, shield]:
+		if is_instance_valid(w):
+			w.detach()
+	if anim:
+		anim.speed_scale = 1.0
+		var kneel := "Crouch_Idle" if anim.has_animation("Crouch_Idle") else "Sitting_Idle"
+		if anim.has_animation(kneel):
+			anim.get_animation(kneel).loop_mode = Animation.LOOP_LINEAR
+			anim.play(kneel, 0.4)
+	_flinch_timer = 1e9
+	yielded_signal.emit(self)
 
 
 ## Weapon-on-weapon contact: the blow deflects — the attack loses its drive

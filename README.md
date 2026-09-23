@@ -22,6 +22,7 @@ damage from its own measured contact speed.
 | `F` / middle click, or THRUST | Thrust |
 | `C` / right mouse (hold), or GUARD | Guard |
 | `X` | Step back out of range |
+| `G` (hold, when badly hurt) | Yield: lose the bout, keep your life (-10 renown) |
 | `Shift` | Sprint (cut while sprinting = heavy blow) |
 | `Q` / `E`, middle-drag, touch drag | Turn the camera; `Tab` toggles lock-on |
 | Mouse wheel | Zoom |
@@ -31,6 +32,7 @@ damage from its own measured contact speed.
 
 - **Tournament ladder** (`scripts/tournament.gd`): 17 bouts across seven ranks — Vagrant, Peasant, Militiaman, Soldier, Veteran, Man-at-Arms, Knight — escalating opponent skill, equipment and numbers: duels, 2v1, free-for-all melees where the fighters kill each other too, gauntlets where they come through the gate one by one, and a 1v6 Grand Melee. A bout director hands out attack tokens so groups circle and wait their turn instead of piling on.
 - **Progression**: renown per bout, a better kit at each rank, and a choice of spoils (the weapons of the fallen) after every win. Persistent in `user://run.cfg`.
+- **Mercy**: a beaten opponent may yield — kneel and drop his weapon. That wins the bout, and a man you spare owes the Hollow nothing; strike him anyway and he is one more soul waiting below. Low-born fighters yield readily, knights rarely.
 - **Death and the Hollow** (`scenes/hollow.tscn`): death offers *Descend into the Hollow*, *Begin a New Life* or *Return to the Hall*. The Hollow is a drowned ruin of the yard where the shades of the men you killed come for you. Lay them to rest and you climb back to the living; fall there and your name is forgotten.
 
 ## Fighters, armour and weapons

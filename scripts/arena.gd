@@ -120,6 +120,7 @@ func _spawn_foes() -> void:
 		e.token_granted = _grant_token
 		e.landed_hit.connect(_on_enemy_landed_hit)
 		e.died.connect(_on_actor_died)
+		e.yielded_signal.connect(_on_actor_yielded)
 		e.set_meta(&"entry", float(f["entry"]))
 		_enemies.append(e)
 
@@ -283,22 +284,40 @@ func _update_hud() -> void:
 
 
 func _check_outcome() -> void:
+	if player.yielded and not player.is_dead():
+		_player_yielded()
+		return
 	var alive := 0
 	for e in _enemies:
-		if not e.is_dead():
+		if not e.is_out():
 			alive += 1
 	if alive == 0 and not player.is_dead():
 		_victory()
+
+
+## You knelt: the bout is lost, but not your life. The heralds are unkind.
+func _player_yielded() -> void:
+	phase = Phase.VICTORY
+	AudioDirector.crowd_cheer(0.5)
+	GameState.run["renown"] = maxi(0, int(GameState.run.get("renown", 0)) - 10)
+	GameState.save_run()
+	await get_tree().create_timer(1.8).timeout
+	hud.show_panel("YOU YIELD", UITheme.INK_DIM, [
+		["You knelt in the sand and they let you live. The crowd jeers; the heralds will not forget. (-10 renown)", 19],
+	], [["Fight the Bout Again", "retry", "", true], ["Return to the Hall", "menu", ""]])
 
 
 func _victory() -> void:
 	phase = Phase.VICTORY
 	AudioDirector.crowd_cheer(1.0)
 	# The last blow lands in slow motion and the yard names it.
-	var last: String = ""
+	var last: KickbackActor = null
 	for e in _enemies:
-		last = String(e.spec.get("name", ""))
-	hud.show_verdict("%s FALLS" % last.get_slice(" ", 0).to_upper(), "The yard is yours")
+		if last == null or e.get_meta(&"out_at", 0) > last.get_meta(&"out_at", 0):
+			last = e
+	var nm := String(last.spec.get("name", "")).get_slice(" ", 0).to_upper() if last else ""
+	hud.show_verdict("%s %s" % [nm, "YIELDS" if last and last.yielded and not last.is_dead() else "FALLS"],
+		"The yard is yours")
 	Engine.time_scale = 0.3
 	await get_tree().create_timer(0.7, true, false, true).timeout
 	Engine.time_scale = 1.0
@@ -310,10 +329,11 @@ func _victory() -> void:
 		var w: String = e.spec.get("weapon", "")
 		if w != "" and not w in weapons and w != player.spec.get("weapon", ""):
 			weapons.append(w)
-	# Only the dead you killed yourself count against you below.
+	# Only the dead you killed yourself count against you below — a man who
+	# yielded and was spared owes the Hollow nothing.
 	var mine: Array = []
 	for e in _enemies:
-		if e.last_attacker == player:
+		if e.is_dead() and e.last_attacker == player:
 			mine.append(e.spec)
 	var renown: int = encounter.get("renown", 10)
 	GameState.bout_won(renown, mine)
@@ -334,6 +354,8 @@ func _on_choice(kind: String, value: String) -> void:
 		"hollow":
 			GameState.enter_hollow()
 			_next_scene("res://scenes/hollow.tscn")
+		"retry":
+			_next_scene("res://scenes/arena.tscn")
 		"new_run":
 			GameState.new_run()
 			_next_scene("res://scenes/arena.tscn")
@@ -376,7 +398,14 @@ func _on_enemy_landed_hit(_target_name: String, _profile_name: String) -> void:
 	pass
 
 
+func _on_actor_yielded(actor: KickbackActor) -> void:
+	actor.set_meta(&"out_at", Time.get_ticks_msec())
+	hud.feed("%s yields" % actor.spec.get("name", actor.name))
+	AudioDirector.crowd_cheer(0.5)
+
+
 func _on_actor_died(actor: KickbackActor) -> void:
+	actor.set_meta(&"out_at", Time.get_ticks_msec())
 	if actor == player:
 		phase = Phase.DEATH
 		Engine.time_scale = 0.35

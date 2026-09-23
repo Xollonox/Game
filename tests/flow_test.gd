@@ -50,6 +50,18 @@ func _load(path: String) -> void:
 
 func _run() -> void:
 	await _wait(0.2)
+	# Mercy: a yielded opponent wins the bout without a debt below.
+	GameState.new_run()
+	GameState.run["bout"] = 0
+	await _load("res://scenes/arena.tscn")
+	var a0 := _scene()
+	a0._start_fight()
+	await _wait(0.5)
+	for e in a0._enemies:
+		e.yield_fight()
+	await _wait(3.5)
+	_check(int(GameState.run["bout"]) == 1, "a yielded opponent wins the bout")
+	_check((GameState.run.get("slain", []) as Array).is_empty(), "sparing him leaves no debt")
 	GameState.new_run()
 	GameState.run["bout"] = 1
 	await _load("res://scenes/arena.tscn")

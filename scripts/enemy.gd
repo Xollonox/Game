@@ -70,10 +70,11 @@ func _tick_ai(delta: float) -> void:
 	_grudge_timer = maxf(0.0, _grudge_timer - delta)
 	_think -= delta
 	sprinting = false
-	if is_dead() or is_downed():
+	if is_dead() or is_downed() or yielded:
 		move_dir = Vector3.ZERO
 		face_dir = Vector3.ZERO
-		set_guard(false)
+		if not yielded:
+			set_guard(false)
 		return
 	weapons_live = _engage_delay <= 0.0
 	if _engage_delay > 0.0:
@@ -94,6 +95,9 @@ func _tick_ai(delta: float) -> void:
 	if _think <= 0.0:
 		_think = 0.4
 		_choose_target()
+	if target and target.yielded:
+		target = null
+		_grudge = null
 	if not target or target.is_dead():
 		move_dir = Vector3.ZERO
 		face_dir = Vector3.ZERO
@@ -181,6 +185,15 @@ func _tick_ai(delta: float) -> void:
 
 ## Armour-aware attack choice: thrusts against mail and plate, heavy blows
 ## with blunt weapons, cuts against cloth.
+## Low-born men yield readily; knights would rather die than kneel in the sand.
+## Shades never yield.
+func _wants_to_yield() -> bool:
+	if spec.get("shade", false):
+		return false
+	var rank := int(spec.get("rank", 1))
+	return randf() < clampf(0.65 - rank * 0.09, 0.1, 0.65)
+
+
 func _choose_attack() -> String:
 	var fam: String = WeaponCatalog.get_def(spec.get("weapon", "")).get("attacks", "sword")
 	var armoured := Armory.worn_weight(target.spec.get("garments", [])) > 14.0
@@ -204,7 +217,7 @@ func _choose_target() -> void:
 	var best_score := INF
 	for node in get_tree().get_nodes_in_group("fighters"):
 		var a := node as KickbackActor
-		if a == null or a == self or a.is_dead():
+		if a == null or a == self or a.is_dead() or a.yielded:
 			continue
 		if a is Enemy and (a as Enemy).team == team:
 			continue
