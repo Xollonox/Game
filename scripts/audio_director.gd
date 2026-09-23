@@ -121,6 +121,7 @@ func play_fight_music() -> void:
 
 
 func start_ambience() -> void:
+	_wind.pitch_scale = 1.0
 	if _crowd.stream and not _crowd.playing:
 		_crowd.play()
 	if _wind.stream and not _wind.playing:
@@ -149,3 +150,35 @@ func ui_hover() -> void:
 	_ui.pitch_scale = randf_range(1.22, 1.30)
 	_ui.volume_db = _db(GameState.master * 0.35) - 10.0
 	_ui.play()
+
+
+## The crowd reacts: a swell of the crowd bed, scaled by how much it liked it.
+func crowd_cheer(strength: float) -> void:
+	if not _crowd.stream:
+		return
+	if not _crowd.playing:
+		_crowd.play()
+	var base := _db(GameState.master * GameState.ambience)
+	var t := create_tween()
+	t.tween_property(_crowd, "volume_db", base + lerpf(2.0, 7.0, clampf(strength, 0.0, 1.0)), 0.35)
+	t.tween_interval(1.2 + strength)
+	t.tween_property(_crowd, "volume_db", base, 2.5)
+
+
+## The Hollow: no crowd, no music — only the wind, slowed until it groans.
+func hollow_ambience() -> void:
+	_crowd.stop()
+	var t := create_tween()
+	t.tween_property(_music, "volume_db", -40.0, 1.5)
+	t.tween_callback(_music.stop)
+	_current_music = ""
+	if _wind.stream:
+		_wind.pitch_scale = 0.55
+		_wind.volume_db = _db(GameState.master * GameState.ambience) + 3.0
+		if not _wind.playing:
+			_wind.play()
+
+
+func restore_ambience() -> void:
+	_wind.pitch_scale = 1.0
+	_apply_volumes()

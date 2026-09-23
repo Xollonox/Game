@@ -46,6 +46,8 @@ const FOOTSTEP_SOUNDS := [
 ]
 
 var _bursts: Array[CPUParticles3D] = []
+var _sparks: Array[CPUParticles3D] = []
+var _next_spark := 0
 var _next_burst := 0
 var _splats: Array[MeshInstance3D] = []
 var _splat_expiry: Array[float] = []
@@ -74,6 +76,7 @@ func _ready() -> void:
 	blood_enabled = not OS.get_cmdline_user_args().has("--noblood")
 	var blood_tex := _make_blood_texture()
 	_build_bursts()
+	_build_sparks()
 	_build_splats(blood_tex)
 	_build_audio()
 	for path in HIT_SOUNDS:
@@ -161,9 +164,17 @@ func play_hit(pos: Vector3, severity: float) -> void:
 ## the impact set brightened and softened — at this asset fidelity the punch
 ## set pitched past 1.5x reads as metal-on-metal, and it keeps the asset ledger
 ## unchanged.
-func play_clash(pos: Vector3, intensity: float) -> void:
+func play_clash(pos: Vector3, intensity: float, wooden := false) -> void:
 	if _clash_streams.is_empty(): return
 	var pl := _take_player()
+	if wooden and not _hit_streams.is_empty():
+		# Steel into a shield board or a haft: a dull knock, not a ring.
+		pl.stream = _hit_streams[_rng.randi() % _hit_streams.size()]
+		pl.global_position = pos
+		pl.pitch_scale = lerpf(0.9, 0.7, clampf(intensity, 0.0, 1.0)) * _rng.randf_range(0.95, 1.05)
+		pl.volume_db = lerpf(-10.0, -1.0, clampf(intensity, 0.0, 1.0))
+		pl.play()
+		return
 	pl.stream = _clash_streams[_rng.randi() % _clash_streams.size()]
 	pl.global_position = pos
 	pl.pitch_scale = lerpf(1.05, 0.82, clampf(intensity, 0.0, 1.0)) * _rng.randf_range(0.96, 1.04)
@@ -171,7 +182,7 @@ func play_clash(pos: Vector3, intensity: float) -> void:
 	pl.play()
 
 
-func play_footstep(pos: Vector3) -> void:
+func play_footstep(pos: Vector3, worn_weight := 0.0) -> void:
 	if _footstep_streams.is_empty(): return
 	var pl := _take_player()
 	pl.stream = _footstep_streams[_rng.randi() % _footstep_streams.size()]
@@ -182,13 +193,63 @@ func play_footstep(pos: Vector3) -> void:
 	# Armour layer: a fighter in plate is never silent. One in three steps also
 	# rings a quiet plate impact, pitched out of the clash set — same asset
 	# ledger, and it is what makes the fighters read as armoured.
-	if not _clash_streams.is_empty() and _rng.randf() < 0.34:
+	if not _clash_streams.is_empty() and worn_weight > 12.0 and _rng.randf() < clampf(worn_weight / 45.0, 0.2, 0.8):
 		var metal := _take_player()
 		metal.stream = _clash_streams[_rng.randi() % _clash_streams.size()]
 		metal.global_position = pos
 		metal.pitch_scale = _rng.randf_range(1.35, 1.6)
-		metal.volume_db = -21.0
+		metal.volume_db = lerpf(-24.0, -15.0, clampf(worn_weight / 45.0, 0.0, 1.0))
 		metal.play()
+
+
+## Steel struck on steel: a spray of sparks, a hard ring, a short shake.
+func armor_impact(pos: Vector3, dir: Vector3, intensity: float, layer: String) -> void:
+	var metal := layer.begins_with("A_") or layer.begins_with("H_")
+	if metal and layer != "A_Gambeson" and layer != "H_PaddedCoif":
+		sparks(pos, dir, intensity)
+		play_clash(pos, clampf(intensity * 1.2, 0.2, 1.0))
+	else:
+		play_hit(pos, intensity * 0.5)
+
+
+func sparks(pos: Vector3, dir: Vector3, intensity: float) -> void:
+	if _sparks.is_empty():
+		return
+	var p := _sparks[_next_spark]
+	_next_spark = (_next_spark + 1) % _sparks.size()
+	p.global_position = pos
+	p.direction = (-dir + Vector3.UP * 0.4).normalized()
+	p.amount = int(lerpf(8.0, 26.0, intensity) * (1.0 if quality_high else 0.5))
+	p.restart()
+	p.emitting = true
+
+
+func _build_sparks() -> void:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(1.0, 0.72, 0.35)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.6, 0.25)
+	mat.emission_energy_multiplier = 3.0
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.012, 0.035)
+	quad.material = mat
+	for i in 6:
+		var p := CPUParticles3D.new()
+		p.emitting = false
+		p.one_shot = true
+		p.explosiveness = 0.95
+		p.lifetime = 0.35
+		p.mesh = quad
+		p.spread = 55.0
+		p.initial_velocity_min = 2.5
+		p.initial_velocity_max = 6.5
+		p.gravity = Vector3(0, -9.8, 0)
+		p.scale_amount_min = 0.6
+		p.scale_amount_max = 1.3
+		add_child(p)
+		_sparks.append(p)
 
 
 ## Drops Engine.time_scale for [param duration] real seconds. Re-entrant: a

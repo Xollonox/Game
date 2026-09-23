@@ -1,0 +1,39 @@
+{
+ "name": "Rondel Dagger",
+ "class": "dagger",
+ "hands": 1,
+ "damage": "pierce",
+ "tip": [
+  0.0,
+  0.0,
+  -0.345
+ ],
+ "length": 0.41,
+ "pommel": [
+  0.0,
+  0.0,
+  0.055
+ ],
+ "id": "rondel_dagger",
+ "mass": 0.38,
+ "com": [
+  0.0,
+  0.0,
+  -0.0636
+ ],
+ "boxes": [
+  {
+   "center": [
+    0.0,
+    0.0,
+    -0.205
+   ],
+   "size": [
+    0.02,
+    0.022,
+    0.29
+   ],
+   "part": "point"
+  }
+ ]
+}

@@ -13,9 +13,10 @@ extends CanvasLayer
 
 signal restart_requested
 signal leave_requested
+signal choice_made(kind: String, value: String)
 
-const HINT_DEFAULT := "WASD move · SHIFT sprint · SPACE swing · drag to look · ESC pause"
-const HINT_FADE_AFTER := 10.0
+const HINT_DEFAULT := "WASD move · SHIFT sprint · SPACE / LMB cut — steer it with movement · F thrust · C / RMB guard · Q E turn view · TAB lock · ESC pause"
+const HINT_FADE_AFTER := 14.0
 
 var _root: Control
 var _vitals_fill: ProgressBar
@@ -44,6 +45,8 @@ func _ready() -> void:
 	_build_hint()
 	_build_death()
 	_build_pause()
+	_build_overlay()
+	_set_fight_hud_visible(false)
 
 
 func _process(delta: float) -> void:
@@ -126,6 +129,10 @@ func _build_hint() -> void:
 	_hint.add_theme_font_size_override("font_size", 16)
 	_hint.add_theme_color_override("font_color", UITheme.INK_DIM)
 	_hint.text = HINT_DEFAULT
+	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hint.offset_left = -420.0
+	_hint.offset_right = 420.0
+	_hint.offset_top = -74.0
 	_root.add_child(_hint)
 
 
@@ -295,7 +302,8 @@ func set_enemies(entries: Array) -> void:
 		var name_label: Label = row["name"]
 		var dead: bool = e["dead"]
 		name_label.text = String(e["name"]) if not dead else String(e["name"]) + "  ✝"
-		name_label.add_theme_color_override("font_color", UITheme.INK_FAINT if dead else UITheme.INK_DIM)
+		var col := UITheme.INK_FAINT if dead else (UITheme.BRASS if e.get("focus", false) else UITheme.INK_DIM)
+		name_label.add_theme_color_override("font_color", col)
 		bar.modulate.a = 0.35 if dead else 1.0
 
 
@@ -343,13 +351,6 @@ func feed(text: String) -> void:
 	t.tween_interval(3.4)
 	t.tween_property(label, "modulate:a", 0.0, 1.2)
 	t.tween_callback(label.queue_free)
-
-
-func show_death() -> void:
-	_death.visible = true
-	_death.modulate.a = 0.0
-	var t := create_tween()
-	t.tween_property(_death, "modulate:a", 1.0, 0.7)
 
 
 func hide_death() -> void:
@@ -447,3 +448,240 @@ func _spacer(h: float) -> Control:
 	var c := Control.new()
 	c.custom_minimum_size = Vector2(0.0, h)
 	return c
+
+
+# ------------------------------------------------------------ overlays ------
+var _overlay: Control
+var _fade_rect: ColorRect
+var _intro_hint: Label
+
+
+func _build_overlay() -> void:
+	_overlay = Control.new()
+	_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_overlay)
+	_fade_rect = ColorRect.new()
+	_fade_rect.color = Color(0, 0, 0, 1)
+	_fade_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_fade_rect)
+	var t := create_tween()
+	t.tween_property(_fade_rect, "modulate:a", 0.0, 1.1)
+
+
+func fade_out(duration: float) -> void:
+	_fade_rect.mouse_filter = Control.MOUSE_FILTER_STOP
+	var t := create_tween()
+	t.tween_property(_fade_rect, "modulate:a", 1.0, duration)
+	await t.finished
+
+
+func _set_fight_hud_visible(on: bool) -> void:
+	for c in [_enemy_rows, _feed, _hint]:
+		if c:
+			c.visible = on
+	if _vitals_fill:
+		_vitals_fill.get_parent().get_parent().visible = on
+
+
+func _clear_overlay() -> void:
+	for c in _overlay.get_children():
+		c.queue_free()
+
+
+func _label(text: String, font: Font, size: int, color: Color, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", font)
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	l.horizontal_alignment = align
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return l
+
+
+func _gradient_band(from_bottom := true, height := 0.55) -> TextureRect:
+	var g := Gradient.new()
+	g.set_color(0, Color(0.02, 0.018, 0.015, 0.0))
+	g.set_color(1, Color(0.02, 0.018, 0.015, 0.92))
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill_from = Vector2(0, 0)
+	gt.fill_to = Vector2(0, 1)
+	var tr := TextureRect.new()
+	tr.texture = gt
+	tr.stretch_mode = TextureRect.STRETCH_SCALE
+	tr.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tr.anchor_top = 1.0 - height if from_bottom else 0.0
+	tr.anchor_bottom = 1.0 if from_bottom else height
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if not from_bottom:
+		tr.flip_v = true
+	return tr
+
+
+static func describe_kit(spec: Dictionary) -> String:
+	var g: Array = spec.get("garments", [])
+	var parts: Array[String] = []
+	if "A_Cuirass" in g:
+		parts.append("full harness")
+	elif "A_Brigandine" in g:
+		parts.append("brigandine over mail")
+	elif "A_Haubergeon" in g:
+		parts.append("mail")
+	elif "A_Gambeson" in g:
+		parts.append("a padded jack")
+	elif "G_Tunic" in g:
+		parts.append("a wool tunic")
+	else:
+		parts.append("his shirt")
+	for h in [["H_Sallet", "sallet"], ["H_Bascinet", "bascinet"], ["H_Barbute", "barbute"], ["H_Kettle", "kettle hat"],
+			["H_Skullcap", "steel cap"], ["H_PaddedCoif", "arming cap"], ["G_Hood", "hood"]]:
+		if h[0] in g:
+			parts.append(h[1])
+			break
+	var w := WeaponCatalog.display_name(spec.get("weapon", "")).to_lower()
+	if spec.get("shield", false):
+		w += " and shield"
+	return "%s · %s" % [" and ".join(parts), w]
+
+
+## The herald's card before a bout.
+func show_intro(enc: Dictionary, run: Dictionary, specs: Array) -> void:
+	_clear_overlay()
+	_set_fight_hud_visible(false)
+	_overlay.add_child(_gradient_band(true, 0.62))
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	box.anchor_right = 1.0
+	box.offset_left = 72.0
+	box.offset_right = -72.0
+	box.offset_top = -330.0
+	box.offset_bottom = -40.0
+	box.add_theme_constant_override("separation", 6)
+	box.alignment = BoxContainer.ALIGNMENT_END
+	_overlay.add_child(box)
+	var bout := int(enc.get("bout", 0))
+	box.add_child(_label("BOUT %d OF %d  ·  %s  ·  RENOWN %d" % [bout + 1, Tournament.bout_count(),
+		Tournament.standing(bout).to_upper(), int(run.get("renown", 0))], UITheme.display(600), 14, UITheme.BRASS))
+	box.add_child(_label(String(enc.get("title", "")), UITheme.decorative(), 46, UITheme.INK))
+	box.add_child(_label(String(enc.get("blurb", "")), UITheme.body(400), 20, UITheme.INK_DIM))
+	box.add_child(_label(Tournament.format_label(enc.get("format", "duel"), specs.size()).to_upper(),
+		UITheme.display(600), 13, UITheme.BLOOD_BRIGHT))
+	box.add_child(UITheme.rule(420.0))
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 26)
+	grid.add_theme_constant_override("v_separation", 2)
+	box.add_child(grid)
+	for sp in specs:
+		var nl := _label(String(sp.get("name", "")), UITheme.display(700), 18, UITheme.INK)
+		nl.autowrap_mode = TextServer.AUTOWRAP_OFF
+		grid.add_child(nl)
+		grid.add_child(_label("%s — %s" % [Armory.rank_name(int(sp.get("rank", 0))), describe_kit(sp)],
+			UITheme.body(), 17, UITheme.INK_DIM))
+	_intro_hint = _label("Strike to begin", UITheme.display(600), 15, UITheme.INK_FAINT)
+	box.add_child(_intro_hint)
+	var t := _intro_hint.create_tween().set_loops()
+	t.tween_property(_intro_hint, "modulate:a", 0.35, 0.9)
+	t.tween_property(_intro_hint, "modulate:a", 1.0, 0.9)
+	_overlay.modulate.a = 0.0
+	create_tween().tween_property(_overlay, "modulate:a", 1.0, 0.8)
+
+
+func hide_intro() -> void:
+	var t := create_tween()
+	t.tween_property(_overlay, "modulate:a", 0.0, 0.4)
+	t.tween_callback(_clear_overlay)
+	t.tween_callback(func(): _overlay.modulate.a = 1.0)
+
+
+func show_fight_hud(first_bout: bool) -> void:
+	_set_fight_hud_visible(true)
+	_hint.visible = first_bout
+	_hint_timer = 0.0
+	_hint_shown = first_bout
+	_hint.modulate.a = 1.0
+
+
+func _choice_panel(title: String, title_color: Color, lines: Array, buttons: Array) -> void:
+	_clear_overlay()
+	_set_fight_hud_visible(false)
+	var veil := ColorRect.new()
+	veil.color = Color(0.02, 0.015, 0.013, 0.62)
+	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
+	veil.mouse_filter = Control.MOUSE_FILTER_STOP
+	_overlay.add_child(veil)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay.add_child(center)
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(520, 0)
+	box.add_theme_constant_override("separation", 10)
+	center.add_child(box)
+	box.add_child(_label(title, UITheme.decorative(), 50, title_color, HORIZONTAL_ALIGNMENT_CENTER))
+	box.add_child(_centered(UITheme.rule(340.0)))
+	for l in lines:
+		box.add_child(_label(l[0], UITheme.body(l[2] if l.size() > 2 else 400), l[1], UITheme.INK_DIM,
+			HORIZONTAL_ALIGNMENT_CENTER))
+	box.add_child(_spacer(12.0))
+	var first: Button = null
+	for b in buttons:
+		var btn := _menu_button(b[0], b.size() > 3 and b[3])
+		btn.custom_minimum_size = Vector2(360, 0)
+		var kind: String = b[1]
+		var val: String = b[2]
+		btn.pressed.connect(func(): choice_made.emit(kind, val))
+		box.add_child(_centered(btn))
+		if first == null:
+			first = btn
+	if first:
+		first.grab_focus.call_deferred()
+	_overlay.modulate.a = 0.0
+	create_tween().tween_property(_overlay, "modulate:a", 1.0, 0.7)
+
+
+func show_victory(enc: Dictionary, run: Dictionary, fallen: Array, weapons: Array, pspec: Dictionary) -> void:
+	var lines := [
+		["+%d renown  ·  %d in all" % [int(enc.get("renown", 0)), int(run.get("renown", 0))], 22, 600],
+		["You now stand as %s." % Tournament.standing(int(run.get("bout", 0))).to_lower(), 18],
+	]
+	var names: Array[String] = []
+	for f in fallen:
+		names.append(String(f.get("name", "")))
+	if not names.is_empty():
+		lines.append(["Left in the sand: " + ", ".join(names), 16])
+	lines.append(["", 8])
+	lines.append(["SPOILS OF THE YARD", 14, 700])
+	var buttons := []
+	for w in weapons.slice(0, 3):
+		buttons.append(["Take the %s" % WeaponCatalog.display_name(w).to_lower(), "spoils", w, false])
+	buttons.push_front(["Keep your %s" % WeaponCatalog.display_name(pspec.get("weapon", "")).to_lower(), "spoils", "", true])
+	_choice_panel("VICTORY", UITheme.BRASS, lines, buttons)
+
+
+func show_champion(run: Dictionary) -> void:
+	_choice_panel("CHAMPION", UITheme.BRASS, [
+		["The Grand Melee is yours. The heralds will cry your name in every yard from here to the sea.", 20],
+		["%d renown  ·  %d slain  ·  %d returns from the Hollow" % [int(run.get("renown", 0)),
+			int(run.get("slain_total", 0)), int(run.get("returns", 0))], 16],
+	], [["Begin a New Life", "new_run", "", true], ["Return to the Hall", "menu", ""]])
+
+
+func show_death(run: Dictionary, kills: int) -> void:
+	var debt := (run.get("slain", []) as Array).size()
+	var line := "The yard keeps what it takes."
+	if debt > 0:
+		line = "%d you sent below are waiting for you in the Hollow." % mini(debt, 5)
+	elif kills == 0:
+		line = "You die with clean hands. Even so, something waits below."
+	_choice_panel("YOU HAVE FALLEN", UITheme.BLOOD_BRIGHT, [
+		[line, 20],
+		["Bout %d · %s · %d renown" % [int(run.get("bout", 0)) + 1, Tournament.standing(int(run.get("bout", 0))),
+			int(run.get("renown", 0))], 16],
+	], [
+		["Descend into the Hollow", "hollow", "", true],
+		["Begin a New Life", "new_run", ""],
+		["Return to the Hall", "menu", ""],
+	])

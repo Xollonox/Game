@@ -1,8 +1,7 @@
-[gd_scene load_steps=19 format=3]
+[gd_scene load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://scripts/arena.gd" id="1_arena"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
-[ext_resource type="PackedScene" path="res://scenes/dummy.tscn" id="3_dummy"]
 [ext_resource type="Script" path="res://scripts/touch_controls.gd" id="4_touch"]
 [ext_resource type="Script" path="res://scripts/world_builder.gd" id="5_world"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="6_hud"]
@@ -108,15 +107,6 @@ surface_material_override/0 = SubResource("Material_ground")
 shape = SubResource("WorldBoundary_ground")
 
 [node name="Player" parent="." instance=ExtResource("2_player")]
-
-[node name="Sellsword" parent="." instance=ExtResource("3_dummy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.5, 0, -2.5)
-
-[node name="ManAtArms" parent="." instance=ExtResource("3_dummy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0, -2.5)
-
-[node name="Brigand" parent="." instance=ExtResource("3_dummy")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -4.5)
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.94, -0.342, 0, 0.342, 0.94, 0, 2.6, 5.5)
