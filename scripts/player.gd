@@ -38,6 +38,8 @@ func _physics_process(delta: float) -> void:
 		attack("heavy" if sprinting else "cut", {"dir": _line_from_input(input_2d)})
 	elif Input.is_action_just_pressed("thrust"):
 		attack("thrust", {"dir": "thrust"})
+	elif Input.is_key_pressed(KEY_X) and not is_swinging():
+		evade()
 
 
 func _line_from_input(input_2d: Vector2) -> String:

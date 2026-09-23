@@ -102,6 +102,8 @@ func _tick_ai(delta: float) -> void:
 		if randf() < _skill * 0.05:
 			_state = State.GUARD if randf() < 0.65 else State.BACKOFF
 			_timer = randf_range(0.35, 0.7)
+			if _state == State.BACKOFF:
+				evade()
 
 	match _state:
 		State.WAIT:

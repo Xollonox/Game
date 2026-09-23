@@ -278,6 +278,7 @@ func _check_outcome() -> void:
 func _victory() -> void:
 	phase = Phase.VICTORY
 	AudioDirector.crowd_cheer(1.0)
+	player.emote("Cheer")
 	var fallen_specs: Array = []
 	var weapons: Array[String] = []
 	for e in _enemies:

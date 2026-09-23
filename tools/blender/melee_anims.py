@@ -539,6 +539,92 @@ def unarmed_moves(rig):
     return acts
 
 
+# ------------------------------------------------------------ locomotion ---
+def locomotion(rig, prefix, base, grip2=None, speed=1.6, period=0.9):
+    """Guarded gait loops for a stance: advance, retreat and sidesteps.
+
+    The upper body holds the stance (weapon still on line); the feet run an
+    in-place cycle whose ground phase slides back at `speed` m/s, so at
+    playback rate 1.0 the feet do not skate when the actor moves at that
+    speed. Steps never cross — a fencer's gait, not a stroll."""
+    acts = []
+    duty = 0.6
+    travel = speed * period * duty  # distance a planted foot slides per step
+    lf = base.get("foot_l", (-0.13, 0.16, -8))
+    rf = base.get("foot_r", (0.17, -0.18, 35))
+
+    def foot_at(home, phase, axis, sign):
+        # phase 0..1: 0 = touchdown (front of stride), duty = lift-off.
+        if phase < duty:
+            t = phase / duty
+            off = travel * (0.5 - t)
+            lift = 0.0
+        else:
+            t = (phase - duty) / (1 - duty)
+            off = travel * (-0.5 + t)
+            lift = 0.09 * math.sin(t * math.pi)
+        off *= sign
+        r, f, yaw = home[:3]
+        if axis == "f":
+            return (r, f + off, yaw, lift)
+        return (r + off, f, yaw, lift)
+
+    for name, axis, sign in (("Walk", "f", 1), ("Back", "f", -1), ("StrafeR", "r", 1), ("StrafeL", "r", -1)):
+        keys = []
+        n = 8
+        for k in range(n + 1):
+            ph = k / n
+            P = dict(base)
+            P["foot_l"] = foot_at(lf, ph % 1.0, axis, sign)
+            P["foot_r"] = foot_at(rf, (ph + 0.5) % 1.0, axis, sign)
+            bob = 0.018 * math.cos(ph * 4 * math.pi)
+            px, py, pz = base.get("pelvis", (0, 0, -0.06))
+            P["pelvis"] = (px, py, pz - 0.012 + bob)
+            ty, tp, tr = base.get("torso", (0, 0, 0))
+            P["torso"] = (ty + 3.0 * math.sin(ph * 2 * math.pi), tp, tr)
+            keys.append((ph * period, P))
+        acts.append(rig.author("%s_%s" % (prefix, name), keys, grip2=grip2))
+    return acts
+
+
+def reactions(rig):
+    """Hit reactions that the rig chases while physics adds the real shove:
+    flinches away from each side, a stumbling retreat, a step-back evade, and
+    a face-down get-up."""
+    acts = []
+    S = STANCE
+    fl = pose(S, hips=(35, -6, 12), torso=(40, -18, 14), pelvis=(0.05, -0.08, -0.08), head=(25, -15),
+              weapon=((0.3, 0.05, 1.0), (0.3, 0.4, 0.6), (0, 0.5, 1)), foot_r=(0.2, -0.3, 40))
+    acts.append(rig.author("Flinch_L", [(0, S), (0.12, fl), (0.5, pose(fl, torso=(25, -8, 6))), (0.9, S)]))
+    fr = pose(S, hips=(-5, -6, -12), torso=(-25, -18, -14), pelvis=(-0.05, -0.08, -0.08), head=(-25, -15),
+              weapon=((0.1, 0.15, 1.1), (-0.2, 0.6, 0.7), (0, 0.5, 1)), foot_l=(-0.2, 0.05, -20))
+    acts.append(rig.author("Flinch_R", [(0, S), (0.12, fr), (0.5, pose(fr, torso=(-12, -8, -6))), (0.9, S)]))
+    st1 = pose(S, pelvis=(0, -0.2, -0.1), hips=(10, -15, 0), torso=(0, -25, 0), head=(0, 20),
+               weapon=((0.35, -0.05, 1.3), (0.5, 0.2, 0.8), (0, 0.8, 0.4)),
+               lhand=((-0.45, 0.0, 1.3), (-0.4, 0.3, 0.8), (0, 0, 1)), foot_l=(-0.15, -0.25, -10, 0.08))
+    st2 = pose(st1, pelvis=(0, -0.45, -0.14), foot_l=(-0.15, -0.35, -10), foot_r=(0.2, -0.7, 30, 0.1))
+    st3 = pose(st2, pelvis=(0, -0.6, -0.1), foot_r=(0.2, -0.75, 30), foot_l=(-0.13, -0.5, -8))
+    acts.append(rig.author("Stagger_Back", [(0, S), (0.2, st1), (0.45, st2), (0.75, st3), (1.3, S)]))
+    ev = pose(S, pelvis=(0, -0.35, -0.12), hips=(20, 8, 0), torso=(10, 12, 0),
+              foot_l=(-0.13, -0.1, -8, 0.06), foot_r=(0.17, -0.55, 35))
+    acts.append(rig.author("Evade_Back", [(0, S), (0.18, pose(ev, foot_l=(-0.13, 0.0, -8, 0.1))), (0.36, ev), (0.8, S)]))
+    # Face-down get-up: prone -> hands and knees -> kneel -> stand.
+    down = {"pelvis": (0, -0.2, -0.78), "hips": (0, 80, 0), "torso": (0, 5, 0), "head": (0, -40),
+            "weapon": ((0.35, 0.45, 0.12), (0.2, 0.9, 0.0), (0, 0, 1)),
+            "lhand": ((-0.3, 0.35, 0.12), (0.0, 0.9, 0.1), (0, 0, 1)),
+            "foot_l": (-0.14, -0.9, -8, 0.05), "foot_r": (0.16, -0.9, 8, 0.05),
+            "elbow_r": (0.5, 0.2, 0.5), "elbow_l": (-0.5, 0.2, 0.5)}
+    hk = pose(down, pelvis=(0, -0.25, -0.5), hips=(0, 55, 0), torso=(0, 20, 0),
+              weapon=((0.3, 0.3, 0.1), (0.2, 0.9, 0.0), (0, 0, 1)), lhand=((-0.28, 0.3, 0.1), (0, 0.9, 0.1), (0, 0, 1)),
+              foot_l=(-0.14, -0.55, -8, 0.05), foot_r=(0.16, -0.6, 8, 0.05))
+    kneel = pose(S, pelvis=(0, -0.05, -0.42), hips=(10, 25, 0), torso=(0, 20, 0),
+                 foot_l=(-0.13, 0.28, -8), foot_r=(0.17, -0.35, 35, 0.05),
+                 weapon=((0.25, 0.25, 0.7), (0.1, 0.6, 0.8), (0, 0.8, -0.3)))
+    acts.append(rig.author("GetUp_Front", [(0, down), (0.5, hk), (1.05, kneel), (1.6, pose(S, pelvis=(0, 0, -0.14))),
+                                          (2.0, S)]))
+    return acts
+
+
 def author_all(arm):
     import json
     rig = Rig(arm)
@@ -561,6 +647,21 @@ def author_all(arm):
     acts += longsword_moves(rig, grip2_of("longsword", 0.19))
     acts += spear_moves(rig, grip2_of("war_spear", 0.45))
     acts += unarmed_moves(rig)
+    acts += reactions(rig)
+    # Guarded gaits for every stance family.
+    acts += locomotion(rig, "Stance_Sword", STANCE)
+    acts += locomotion(rig, "Stance_Blunt", pose(STANCE, weapon=((0.2, 0.2, 1.15), (0.1, 0.5, 0.86), (0, 0.9, -0.2))))
+    acts += locomotion(rig, "Stance_Dagger", pose(STANCE, weapon=((0.14, 0.3, 1.1), (0.0, 0.9, 0.4), (0, -0.3, 1)),
+                                                 lhand=((-0.14, 0.32, 1.2), (0.3, 0.8, 0.4), (0, 0, 1))))
+    acts += locomotion(rig, "Stance_Shield", pose(STANCE, lhand=("shield", (-0.08, 0.36, 1.18), (0.1, 1, 0.05), (0.1, 0.1, 1)),
+                                                 weapon=((0.24, 0.12, 1.3), (0.1, 0.5, 0.86), (0, 0.8, -0.3)),
+                                                 hips=(10, 0, 0), torso=(0, 6, 0)))
+    acts += locomotion(rig, "Guard_Longsword", pose(STANCE, hips=(20, 0, 0), torso=(-4, 6, 0),
+                                                   weapon=((0.1, 0.34, 1.12), (-0.12, 0.85, 0.5), (0, 0.3, 1))),
+                       grip2=grip2_of("longsword", 0.19))
+    acts += locomotion(rig, "Guard_Spear", pose(STANCE, hips=(30, 0, 0), torso=(12, 4, 0),
+                                               weapon=((0.18, 0.0, 1.02), (-0.1, 0.98, 0.18), (0, 0, 1)),
+                                               elbow_r=(0.6, -0.3, 0.8)), grip2=grip2_of("war_spear", 0.45))
     bpy.data.objects.remove(rig.src, do_unlink=True)
     for e in rig.targets.values():
         bpy.data.objects.remove(e, do_unlink=True)

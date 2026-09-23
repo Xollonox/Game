@@ -25,7 +25,10 @@ const FIGHTER_SCENE := preload("res://assets/models/characters/fighter/fighter.g
 const LOOPING := ["Idle", "Walk", "Jog", "Sprint", "Sword_Idle", "Crouch_Idle", "Walk_Formal", "Idle_Talking",
 	"Sitting_Idle", "Shield_Idle", "Idle_FoldArms", "Zombie_Idle", "Zombie_Walk", "Guard_High", "Guard_Mid",
 	"Guard_Low", "Guard_Longsword", "Guard_Spear", "Stance_Idle", "Stance_Idle_2", "Walk_Guard", "Walk_Back",
-	"Strafe_L", "Strafe_R", "Idle_Wounded", "Walk_Wounded", "Cheer"]
+	"Strafe_L", "Strafe_R", "Idle_Wounded", "Walk_Wounded", "Cheer", "Stance_Sword", "Stance_Blunt",
+	"Stance_Dagger", "Stance_Shield", "Guard_Shield", "Guard_Longsword_High", "Guard_Spear_High"]
+## Speed (m/s) the guarded gait clips were authored for (melee_anims.locomotion).
+const GAIT_SPEED := 1.6
 
 ## Which RagdollTuning preset to build the rig with.
 @export var tuning_preset := "stand"
@@ -154,7 +157,10 @@ func _prepare_animations() -> void:
 		var lib := anim.get_animation_library(lib_name)
 		for a_name in lib.get_animation_list():
 			var a := lib.get_animation(a_name)
-			a.loop_mode = Animation.LOOP_LINEAR if String(a_name) in LOOPING else Animation.LOOP_NONE
+			var n := String(a_name)
+			var loops := n in LOOPING or n.ends_with("_Walk") or n.ends_with("_Back") or n.ends_with("_StrafeL") \
+				or n.ends_with("_StrafeR")
+			a.loop_mode = Animation.LOOP_LINEAR if loops else Animation.LOOP_NONE
 
 
 func _stance_for_weapon() -> String:
@@ -235,7 +241,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var moving := move_dir.length_squared() > 0.01
-	var speed := move_speed * (SPRINT_SPEED / WALK_SPEED if sprinting else 1.0)
+	var speed := move_speed * (SPRINT_SPEED / WALK_SPEED if sprinting else 1.0) * _gait_scale()
 	if _attack_timer > 0.0:
 		speed *= float(_attack_move.get("move_scale", 0.45))
 	if _guarding:
@@ -260,6 +266,11 @@ func _physics_process(delta: float) -> void:
 	_update_locomotion_anim(moving)
 
 
+## Squared up in a fight, a fighter moves in a guarded gait, not a stroll.
+func _gait_scale() -> float:
+	return 0.68 if face_dir.length_squared() > 0.01 and not sprinting else 1.0
+
+
 func _update_locomotion_anim(moving: bool) -> void:
 	if not anim or _flinch_timer > 0.0 or _attack_timer > 0.0:
 		return
@@ -268,19 +279,29 @@ func _update_locomotion_anim(moving: bool) -> void:
 	if _guarding:
 		want = _guard_anim
 	elif moving:
+		var fwd := global_basis.z
+		var md := move_dir.normalized()
+		var d := md.dot(fwd)
+		var sp := move_dir.length() * move_speed * _gait_scale()
 		if sprinting:
 			want = "Sprint"
+		elif spec.get("shade", false):
+			want = "Zombie_Walk"
+			spd = move_speed / WALK_SPEED
+		elif face_dir.length_squared() > 0.01 and anim.has_animation(_stance_anim + "_Walk"):
+			# Squared up to an opponent: fencing gait in the stance's own guard.
+			var suffix := "_Walk"
+			if d < -0.5:
+				suffix = "_Back"
+			elif absf(d) <= 0.5:
+				suffix = "_StrafeR" if md.dot(global_basis.x) < 0.0 else "_StrafeL"
+			want = _stance_anim + suffix
+			spd = clampf(sp / GAIT_SPEED, 0.5, 1.6)
 		else:
-			var fwd := global_basis.z
-			var d := move_dir.normalized().dot(fwd)
-			want = "Zombie_Walk" if spec.get("shade", false) else "Walk"
+			want = "Walk"
 			spd = move_speed / WALK_SPEED
 			if d < -0.35:
 				spd = -spd * 0.85
-			elif absf(d) < 0.35 and anim.has_animation("Strafe_L"):
-				var right := move_dir.normalized().dot(global_basis.x) > 0.0
-				want = "Strafe_L" if right else "Strafe_R"
-				spd = 1.0
 	if anim.current_animation != want or not is_equal_approx(anim.speed_scale, spd):
 		if anim.current_animation != want:
 			anim.play(want, 0.22)
@@ -311,6 +332,25 @@ func attack(kind: String = "cut", context: Dictionary = {}) -> bool:
 	_attack_timer = float(move.get("commit", 0.8)) * dur / rate
 	_attack_move = move
 	return true
+
+
+## A quick step back out of range (AI back-off, player evade).
+func evade() -> bool:
+	if _downed or _dead or _attack_timer > 0.0 or not anim or not anim.has_animation("Evade_Back"):
+		return false
+	anim.speed_scale = 1.0
+	anim.play("Evade_Back", 0.08)
+	_attack_timer = 0.45
+	_attack_move = {"move_scale": 1.6}
+	return true
+
+
+## Emote after a bout (raised fist, a nod to the stands).
+func emote(a: String) -> void:
+	if anim and anim.has_animation(a) and not _downed and not _dead:
+		anim.speed_scale = 1.0
+		anim.play(a, 0.3)
+		_attack_timer = anim.get_animation(a).length
 
 
 ## Backwards-compatible name used by tests and older callers.
@@ -464,7 +504,14 @@ func _on_hit_absorbed(rig_name: String, _strength: float) -> void:
 	_flinch_timer = 0.35
 	if anim:
 		anim.speed_scale = 1.0
-		anim.play("Hit_Head" if "Head" in rig_name else "Hit_Chest", 0.08)
+		var a := "Hit_Head" if "Head" in rig_name else "Hit_Chest"
+		if "_L" in rig_name and anim.has_animation("Flinch_L"):
+			a = "Flinch_L"
+		elif "_R" in rig_name and anim.has_animation("Flinch_R"):
+			a = "Flinch_R"
+		elif _rng.randf() < 0.5 and anim.has_animation("Flinch_L"):
+			a = "Flinch_L" if _rng.randf() < 0.5 else "Flinch_R"
+		anim.play(a, 0.08)
 
 
 func _on_stagger_started(_hit_dir: Vector3) -> void:
@@ -473,7 +520,9 @@ func _on_stagger_started(_hit_dir: Vector3) -> void:
 	_guarding = false
 	if anim:
 		anim.speed_scale = 1.0
-		anim.play("Hit_Knockback" if anim.has_animation("Hit_Knockback") and _rng.randf() < 0.5 else "Hit_Chest", 0.1)
+		var opts := ["Hit_Knockback", "Stagger_Back", "Stagger_Back", "Hit_Chest"]
+		var pick: String = opts[_rng.randi() % opts.size()]
+		anim.play(pick if anim.has_animation(pick) else "Hit_Chest", 0.1)
 
 
 func _on_stagger_finished() -> void:

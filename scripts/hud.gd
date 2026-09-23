@@ -15,7 +15,7 @@ signal restart_requested
 signal leave_requested
 signal choice_made(kind: String, value: String)
 
-const HINT_DEFAULT := "WASD move   ·   SPACE/LMB cut (steer with movement)   ·   F thrust   ·   C/RMB guard   ·   SHIFT sprint   ·   ESC pause"
+const HINT_DEFAULT := "WASD move   ·   SPACE/LMB cut (steer with movement)   ·   F thrust   ·   C/RMB guard   ·   X step back   ·   SHIFT sprint   ·   ESC pause"
 const HINT_FADE_AFTER := 14.0
 
 var _root: Control
