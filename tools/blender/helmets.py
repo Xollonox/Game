@@ -204,6 +204,30 @@ def build(arm, body, MAT):
     W.join_into(s, bev)
     W.finish(s, 1.5, uv="box")
 
+    # Great bascinet with a hounskull visor: the pointed "pig-face" snout of
+    # the late 1300s-1400s, eye slits and breaths, over a mail aventail.
+    hb = shell("H_Hounskull", arm, body, plate, head + Vector((0, 0.005, cl + 0.04)), hrx + cl, hry + cl + 0.01,
+               0.16 + cl, cz, bas_bottom, cut=bas_cut, point=0.55, rows=18)
+    W.join_into(hb, aventail("aven2", arm, body, mail, head, hrx + cl + 0.004, hry + cl + 0.01, cz - 0.03, 1.47, 1.45))
+
+    def snout(th, below):
+        return 0.0
+    visor = shell("visor", arm, body, plate, Vector((head.x, head.y - 0.01, cz + 0.035)), hrx + cl + 0.012,
+                  hry + cl + 0.022, 0.02, cz + 0.034, lambda th: cz - 0.115,
+                  cut=lambda th, z: abs(th) > 1.25 or (0.07 < abs(th) < 0.75 and cz - 0.008 < z < cz + 0.008),
+                  rows=12, thickness=0.004)
+    # Pull the centre of the visor forward into the snout.
+    for v in visor.data.vertices:
+        c = v.co
+        if c.y < head.y:
+            th = abs(math.atan2(c.x - head.x, -(c.y - head.y)))
+            t = max(0.0, 1.0 - th / 1.1)
+            zc = max(0.0, 1.0 - abs(c.z - (cz - 0.045)) / 0.08)
+            c.y -= 0.075 * (t ** 1.6) * zc
+    visor.data.update()
+    W.join_into(hb, visor)
+    W.finish(hb, 1.5, uv="box")
+
     # Barbute: deep enclosing helmet with a T-shaped face opening.
     def bar_cut(th, z):
         return (abs(th) < 0.16 and z < cz + 0.0) or (abs(th) < 0.5 and cz - 0.012 < z < cz + 0.02)

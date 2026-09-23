@@ -53,6 +53,7 @@ const LAYERS := {
 	"H_Bascinet": [HEAD, 0.92, 0.8, 0.42, 0.8, 3.0, [], true],
 	"H_Sallet": [HEAD, 0.92, 0.8, 0.42, 0.88, 3.0, [], true],
 	"H_Barbute": [HEAD, 0.92, 0.8, 0.42, 0.9, 3.2, [], true],
+	"H_Hounskull": [HEAD, 0.94, 0.85, 0.45, 0.95, 3.6, [], true],
 	"X_Belt": [[], 0.0, 0.0, 0.0, 0.0, 0.3, [], false],
 	"X_BeltOuter": [[], 0.0, 0.0, 0.0, 0.0, 0.3, [], false],
 }
@@ -133,7 +134,7 @@ static func roll_fighter(rank: int, rng: RandomNumberGenerator) -> Dictionary:
 		_:
 			g.append_array(["A_Gambeson", "A_Haubergeon", "A_Cuirass", "G_Hose", "A_Rerebraces", "A_Pauldrons",
 				"A_Vambraces", "A_Couters", "A_Gauntlets", "A_Cuisses", "A_Poleyns", "A_Greaves", "A_Sabatons"])
-			helm = pick.call(["H_Sallet", "H_Bascinet", "H_Barbute"])
+			helm = pick.call(["H_Sallet", "H_Hounskull", "H_Hounskull", "H_Barbute"])
 			weapon = pick.call(["longsword", "flanged_mace", "longsword", "arming_sword"])
 			shield = weapon == "arming_sword"
 	if helm != "":
@@ -196,7 +197,7 @@ static func player_kit_for_rank(base: Dictionary, rank: int) -> Dictionary:
 		["A_Gambeson", "A_Haubergeon", "A_Brigandine", "G_Hose", "G_Boots", "A_Vambraces", "A_Gauntlets",
 			"A_Greaves", "A_Poleyns", "X_BeltOuter", "H_Bascinet"],
 		["A_Gambeson", "A_Haubergeon", "A_Cuirass", "G_Hose", "A_Rerebraces", "A_Pauldrons", "A_Vambraces",
-			"A_Couters", "A_Gauntlets", "A_Cuisses", "A_Poleyns", "A_Greaves", "A_Sabatons", "H_Sallet"],
+			"A_Couters", "A_Gauntlets", "A_Cuisses", "A_Poleyns", "A_Greaves", "A_Sabatons", "H_Hounskull"],
 	]
 	f["garments"] = tiers[clampi(rank, 0, tiers.size() - 1)]
 	return f

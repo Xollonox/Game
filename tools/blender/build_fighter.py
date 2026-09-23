@@ -149,6 +149,18 @@ def main():
         import wardrobe
         wardrobe.build(arm, quick=QUICK)
         bpy.data.objects.remove(bpy.data.objects["Body"], do_unlink=True)
+        # Web budget: no garment over ~3k faces (collapse keeps skin weights).
+        for ob in list(bpy.data.objects):
+            if ob.type != "MESH" or ob.name[:2] not in ("G_", "A_", "H_", "X_"):
+                continue
+            n = len(ob.data.polygons)
+            if n > 3200:
+                m = ob.modifiers.new("Dec", "DECIMATE")
+                m.ratio = 3000.0 / n
+                bpy.context.view_layer.objects.active = ob
+                bpy.ops.object.modifier_move_to_index(modifier="Dec", index=0)
+                bpy.ops.object.modifier_apply(modifier="Dec")
+                print("DECIMATE", ob.name, n, "->", len(ob.data.polygons))
     except ImportError as e:
         print("NO_WARDROBE", e)
 

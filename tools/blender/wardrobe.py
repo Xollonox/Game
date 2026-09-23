@@ -457,7 +457,7 @@ def build(arm, quick=False):
 
     # Padded jack / gambeson with quilting and a mid-thigh skirt.
     gb = garment(body, arm, "A_Gambeson", ("Torso", "Neck", "UpperArm", "LowerArm"), L["padded"], 0.03, 14,
-                 sub=0 if quick else 1, quilt=0.006,
+                 sub=0, quilt=0.006,
                  exclude=lambda c, z: (z == "Neck" and c.z > 1.56) or (z == "LowerArm" and abs(c.x) > 0.67))
     sk = skirt(body, arm, "gamb_skirt", 0.97, 0.62, 0.03, 0.22, L["padded"], body, slit_front=True)
     join_into(gb, sk)
@@ -482,6 +482,7 @@ def build(arm, quick=False):
     cu = garment(body, arm, "A_Cuirass", ("Torso",), L["plate"], 0.075, 40,
                  exclude=lambda c, z: c.z > 1.49 or c.z < 1.04 or (abs(c.x) > 0.165 and c.z > 1.33),
                  thickness=0.004, uv="box", texel=1.5)
+    _globose(cu)
     rigid(cu, lambda co: "spine_03" if co.z > 1.28 else "spine_02")
     for k, (zt, zb) in enumerate(((1.05, 0.99), (1.00, 0.94), (0.95, 0.89))):
         lame = skirt(body, arm, "fauld%d" % k, zt, zb, 0.07 + 0.006 * k, 0.12, L["plate"], body, rows=1)
@@ -493,10 +494,7 @@ def build(arm, quick=False):
     rb = garment(body, arm, "A_Rerebraces", ("UpperArm",), L["plate"], 0.03, 20,
                  exclude=lambda c, z: abs(c.x) < 0.25, thickness=0.003, uv="box", texel=1.5)
     rigid(rb, lambda co: "upperarm_" + side(co))
-    pa = garment(body, arm, "A_Pauldrons", ("UpperArm", "Torso"), L["plate"], 0.07, 30,
-                 exclude=lambda c, z: (z == "UpperArm" and abs(c.x) > 0.34) or (z == "Torso" and (abs(c.x) < 0.13 or c.z < 1.36)),
-                 thickness=0.004, uv="box", texel=1.5)
-    rigid(pa, lambda co: "upperarm_" + side(co) if abs(co.x) > 0.2 else "clavicle_" + side(co))
+    pa = _spaulders(arm, body, L["plate"])
     vb = garment(body, arm, "A_Vambraces", ("LowerArm",), L["plate"], 0.025, 20,
                  exclude=lambda c, z: abs(c.x) < 0.49, thickness=0.003, uv="box", texel=1.5)
     rigid(vb, lambda co: "lowerarm_" + side(co))
@@ -596,6 +594,71 @@ def _cop(bm, center, out_dir, radius, depth, n=12):
     # Wing plate.
     for i in range(n):
         pass
+
+
+def _globose(ob):
+    """XV-century breastplates are globular, not body-shaped: swell the
+    front toward the sternum, raise a medial ridge (the keel) and let the
+    lower edge flare slightly over the fauld."""
+    me = ob.data
+    for v in me.vertices:
+        c = v.co
+        if c.y < 0.0:  # front
+            hz = math.exp(-((c.z - 1.3) / 0.14) ** 2)
+            hx = math.exp(-(c.x / 0.12) ** 2)
+            keel = 0.012 * math.exp(-(c.x / 0.022) ** 2) * (1.0 if 1.08 < c.z < 1.46 else 0.0)
+            c.y -= 0.035 * hz * hx + keel
+        if c.z < 1.1:
+            k = (1.1 - c.z) / 0.06
+            r = math.hypot(c.x, c.y - 0.02)
+            if r > 1e-4:
+                c.x *= 1.0 + 0.05 * k
+                c.y = 0.02 + (c.y - 0.02) * (1.0 + 0.05 * k)
+    me.update()
+
+
+def _spaulders(arm, body, material):
+    """Layered shoulder defences: a domed cap over each shoulder joint and
+    two overlapping lames down the upper arm, each riveted rigidly to its
+    bone so the stack slides like real articulated plate."""
+    bm = bmesh.new()
+    for s in (1, -1):
+        cx = 0.225 * s
+        # Dome cap: a section of an ellipsoid over the shoulder, open below.
+        rows, cols = 7, 16
+        grid = []
+        for r in range(rows + 1):
+            el = math.radians(8 + 72 * r / rows)  # from the top down the side
+            row = []
+            for c in range(cols + 1):
+                az = math.radians(-100 + 200 * c / cols)  # front -> outside -> back
+                x = cx + s * 0.105 * math.sin(el) * max(math.cos(az), 0.25) + s * 0.02
+                y = 0.05 - 0.11 * math.sin(el) * math.sin(az)
+                z = 1.505 + 0.1 * math.cos(el)
+                row.append(bm.verts.new((x, y, z)))
+            grid.append(row)
+        for r in range(rows):
+            for c in range(cols):
+                bm.faces.new([grid[r][c], grid[r][c + 1], grid[r + 1][c + 1], grid[r + 1][c]])
+        # Lames: half-rings round the top of the arm, each overlapping the next.
+        for k in range(2):
+            x0 = cx + s * (0.09 + k * 0.05)
+            ring_a, ring_b = [], []
+            for c in range(13):
+                az = math.radians(-110 + 220 * c / 12)
+                rad = 0.082 - k * 0.006
+                y = 0.07 - rad * math.sin(az)
+                z = 1.456 + rad * math.cos(az)
+                ring_a.append(bm.verts.new((x0, y, z)))
+                ring_b.append(bm.verts.new((x0 + s * 0.06, y, z - 0.004)))
+            for c in range(12):
+                bm.faces.new([ring_a[c], ring_a[c + 1], ring_b[c + 1], ring_b[c]])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    ob = new_object("A_Pauldrons", bm, arm, body, material)
+    bm.free()
+    solidify(ob, 0.004)
+    rigid(ob, lambda co: "upperarm_" + side(co))
+    return finish(ob, 1.5, uv="box")
 
 
 def _couters(arm, body, material):
