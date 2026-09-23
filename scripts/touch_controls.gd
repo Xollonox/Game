@@ -21,14 +21,20 @@ var _joystick_touch_index := -1
 var _joystick_center := Vector2.ZERO
 var _joystick_vector := Vector2.ZERO
 var _camera_touch_index := -1
+var _extras: Array[Button] = []
 
 
 func _ready() -> void:
 	# Show for real touch devices; a screen that later receives an actual touch
 	# event (some browsers under-report touch support) reveals it too.
 	visible = DisplayServer.is_touchscreen_available()
+	attack_button.text = "CUT"
+	# Thrust and guard sit in an arc around the main button, thumb-reachable.
+	_extra_button("THRUST", "thrust", Vector2(-330.0, -150.0))
+	_extra_button("GUARD", "guard", Vector2(-190.0, -320.0))
 	attack_button.button_down.connect(func(): Input.action_press("attack"))
 	attack_button.button_up.connect(func(): Input.action_release("attack"))
+
 	_reset_knob()
 
 
@@ -39,6 +45,20 @@ func _input(event: InputEvent) -> void:
 		_on_touch(event)
 	elif event is InputEventScreenDrag and visible:
 		_on_drag(event)
+
+
+func _extra_button(label: String, action: String, offset: Vector2) -> void:
+	var b := attack_button.duplicate() as Button
+	b.text = label
+	b.offset_left = offset.x
+	b.offset_top = offset.y
+	b.offset_right = offset.x + 110.0
+	b.offset_bottom = offset.y + 110.0
+	b.add_theme_font_size_override("font_size", 15)
+	add_child(b)
+	b.button_down.connect(func(): Input.action_press(action))
+	b.button_up.connect(func(): Input.action_release(action))
+	_extras.append(b)
 
 
 func get_move_vector() -> Vector2:
@@ -52,7 +72,8 @@ func _on_touch(event: InputEventScreenTouch) -> void:
 			if _joystick_touch_index == -1:
 				_joystick_touch_index = event.index
 				_joystick_center = joystick_base.global_position + joystick_base.size * 0.5
-		elif _camera_touch_index == -1 and not _point_in_control(attack_button, event.position):
+		elif _camera_touch_index == -1 and not _point_in_control(attack_button, event.position) \
+				and not _extras.any(func(b): return _point_in_control(b, event.position)):
 			_camera_touch_index = event.index
 	else:
 		if event.index == _joystick_touch_index:

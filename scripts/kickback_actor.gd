@@ -102,7 +102,10 @@ func _ready() -> void:
 		return
 	anim = _find_animation_player(model)
 	_prepare_animations()
-	_stance_anim = _stance_for_weapon()
+	_stance_anim = spec.get("stance_override", _stance_for_weapon())
+	if spec.get("shade", false):
+		_stance_anim = "Zombie_Idle"
+		move_speed *= 0.8
 	# Pose the skeleton BEFORE building the rig: PhysicsRigBuilder samples bone
 	# global transforms in its _ready(), and a fresh glTF skeleton is still at its
 	# rest (T) pose — the rig would be built arms-out and snap on the first frame.
@@ -268,7 +271,7 @@ func _update_locomotion_anim(moving: bool) -> void:
 		else:
 			var fwd := global_basis.z
 			var d := move_dir.normalized().dot(fwd)
-			want = "Walk"
+			want = "Zombie_Walk" if spec.get("shade", false) else "Walk"
 			spd = move_speed / WALK_SPEED
 			if d < -0.35:
 				spd = -spd * 0.85
@@ -397,7 +400,7 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 		CombatFX.play_hit(point, sev * 0.6)
 	if hard or dmg < 3.0:
 		CombatFX.shake_requested.emit(clampf(force / 25.0, 0.1, 0.6))
-	var result := {"profile": String(profile.profile_name), "damage": dmg, "struck": prot["struck"],
+	var result := {"profile": String(profile.profile_name), "damage": dmg, "speed": speed, "part": info.get("part", ""), "struck": prot["struck"],
 		"kind": kind, "rig_name": rig_name, "hard": hard}
 	wounded.emit(self, result)
 	_take_damage(dmg)

@@ -42,15 +42,25 @@ var _phase_t := 0.0
 var _intro_orbit := 0.0
 
 
-func _ready() -> void:
-	_rng.randomize()
+## Runs top-down, before any child's _ready: the player must be dressed from
+## the run before its rig and look are built.
+func _enter_tree() -> void:
 	if not GameState.has_run():
 		GameState.new_run()
-	var run := GameState.run
+	var p := get_node_or_null("Player")
+	if p:
+		p.spec = _player_spec()
+
+
+func _player_spec() -> Dictionary:
+	return GameState.player_spec()
+
+
+func _ready() -> void:
+	_rng.randomize()
 	encounter = _make_encounter()
 
 	if player:
-		player.spec = GameState.player_spec()
 		player.camera = camera
 		player.touch_controls = touch_controls
 		player.landed_hit.connect(_on_player_landed_hit)

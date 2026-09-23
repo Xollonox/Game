@@ -53,8 +53,50 @@ static func apply(model: Node3D, spec: Dictionary) -> void:
 			var src := mesh.surface_get_material(i)
 			var slot := src.resource_name.get_slice(".", 0) if src else ""
 			var m := material_for(slot, spec, colors)
+			if m and spec.get("shade", false):
+				m = _shade_of(m, slot)
 			if m:
 				mi.set_surface_override_material(i, m)
+		if spec.get("shade", false):
+			mi.material_overlay = _shade_overlay()
+
+
+## The dead: colour drained to ash, a cold sheen on every edge.
+static func _shade_of(m: Material, slot: String) -> Material:
+	var key := "shade_" + str(m.get_instance_id())
+	if _mat_cache.has(key):
+		return _mat_cache[key]
+	var d := m.duplicate() as StandardMaterial3D
+	if d:
+		var c := d.albedo_color
+		var g := (c.r + c.g + c.b) / 3.0
+		d.albedo_color = Color(g, g * 1.05, g * 1.12).lerp(Color(0.3, 0.34, 0.38), 0.45)
+		if slot == "MI_Eyes":
+			d.emission_enabled = true
+			d.emission = Color(0.5, 0.85, 1.0)
+			d.emission_energy_multiplier = 3.0
+	_mat_cache[key] = d if d else m
+	return _mat_cache[key]
+
+
+static var _overlay: ShaderMaterial
+
+
+static func _shade_overlay() -> ShaderMaterial:
+	if _overlay:
+		return _overlay
+	var sh := Shader.new()
+	sh.code = """shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_back;
+uniform vec4 tint : source_color = vec4(0.35, 0.6, 0.85, 1.0);
+void fragment() {
+	float f = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.0);
+	ALBEDO = tint.rgb * f * 0.9;
+	ALPHA = f;
+}"""
+	_overlay = ShaderMaterial.new()
+	_overlay.shader = sh
+	return _overlay
 
 
 static func _tex(name: String) -> Texture2D:

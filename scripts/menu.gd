@@ -39,8 +39,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_accept") and not _busy:
 		if _open_panel != null:
 			_close_panel()
-		else:
-			_enter_yard()
 
 
 # ---------------------------------------------------------------- world -----
@@ -127,7 +125,7 @@ func _build_ui() -> void:
 	rule_row.add_child(UITheme.rule(340.0, UITheme.BRASS))
 
 	var sub := Label.new()
-	sub.text = "A physics-driven medieval duel"
+	sub.text = "Sixteen bouts, one body, no second chances above ground"
 	sub.add_theme_font_override("font", UITheme.body())
 	sub.add_theme_font_size_override("font_size", 21)
 	sub.add_theme_color_override("font_color", UITheme.INK_DIM)
@@ -135,10 +133,34 @@ func _build_ui() -> void:
 
 	column.add_child(_spacer(46.0))
 
-	var play := _button("Enter the Yard", true)
-	play.pressed.connect(_enter_yard)
-	column.add_child(play)
-	column.add_child(_spacer(10.0))
+	if GameState.has_run():
+		var run := GameState.run
+		var in_hollow: bool = run.get("mode", "arena") == "hollow"
+		var cont := _button("Descend Again" if in_hollow else "Continue the Tournament", true)
+		cont.pressed.connect(func(): _enter("res://scenes/hollow.tscn" if in_hollow else ARENA_SCENE))
+		column.add_child(cont)
+		var st := Label.new()
+		st.text = ("In the Hollow" if in_hollow else "Bout %d of %d · %s" % [int(run.get("bout", 0)) + 1,
+			Tournament.bout_count(), Tournament.standing(int(run.get("bout", 0)))]) + " · %d renown" % int(run.get("renown", 0))
+		st.add_theme_font_size_override("font_size", 15)
+		st.add_theme_color_override("font_color", UITheme.INK_FAINT)
+		column.add_child(st)
+		column.add_child(_spacer(10.0))
+		var fresh := _button("Begin a New Life", false)
+		fresh.pressed.connect(func():
+			GameState.new_run()
+			_enter(ARENA_SCENE))
+		column.add_child(fresh)
+		column.add_child(_spacer(10.0))
+		cont.grab_focus.call_deferred()
+	else:
+		var play := _button("Enter the Tournament", true)
+		play.pressed.connect(func():
+			GameState.new_run()
+			_enter(ARENA_SCENE))
+		column.add_child(play)
+		column.add_child(_spacer(10.0))
+		play.grab_focus.call_deferred()
 
 	var how := _button("How to Fight", false)
 	how.pressed.connect(func(): _show_panel(_controls_panel()))
@@ -155,7 +177,7 @@ func _build_ui() -> void:
 	version.offset_top = -40.0
 	version.offset_right = 300.0
 	version.offset_bottom = -18.0
-	version.text = "v0.2 · Godot 4.7"
+	version.text = "v0.3 · Godot 4.7"
 	version.add_theme_font_size_override("font_size", 14)
 	version.add_theme_color_override("font_color", UITheme.INK_FAINT)
 	root.add_child(version)
@@ -187,9 +209,12 @@ func _controls_panel() -> Control:
 	var rows := [
 		["Move", "W A S D  ·  joystick"],
 		["Sprint", "Shift"],
-		["Swing", "Space  ·  left click  ·  SWING"],
-		["Camera", "right-drag  ·  Q / E  ·  wheel"],
-		["Restart", "R"],
+		["Cut", "Space  ·  left click  ·  CUT"],
+		["Line of the cut", "hold forward: from above · sideways: level · back: rising"],
+		["Thrust", "F  ·  middle click  ·  THRUST"],
+		["Guard", "hold C  ·  right mouse  ·  GUARD"],
+		["Heavy blow", "cut while sprinting"],
+		["Camera", "Q / E  ·  middle-drag  ·  wheel  ·  Tab: lock on/off"],
 		["Pause", "Esc"],
 	]
 	for r in rows:
@@ -287,6 +312,12 @@ func _close_panel() -> void:
 
 
 func _enter_yard() -> void:
+	if not GameState.has_run():
+		GameState.new_run()
+	_enter(ARENA_SCENE)
+
+
+func _enter(path: String) -> void:
 	if _busy:
 		return
 	_busy = true
@@ -294,7 +325,7 @@ func _enter_yard() -> void:
 	var t := create_tween()
 	t.tween_property(_fade, "color:a", 1.0, 0.55)
 	await t.finished
-	get_tree().change_scene_to_file(ARENA_SCENE)
+	get_tree().change_scene_to_file(path)
 
 
 # -------------------------------------------------------------- widgets -----

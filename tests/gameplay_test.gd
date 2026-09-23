@@ -34,7 +34,13 @@ func _ready() -> void:
 			limit = float(a.substr(8))
 	GameState.new_run()
 	GameState.run["bout"] = bout
-	arena = ARENA.instantiate()
+	var scene := ARENA
+	if "--hollow" in OS.get_cmdline_user_args():
+		var rng := RandomNumberGenerator.new()
+		GameState.run["slain"] = [Armory.roll_fighter(1, rng), Armory.roll_fighter(2, rng), Armory.roll_fighter(0, rng)]
+		GameState.enter_hollow()
+		scene = load("res://scenes/hollow.tscn")
+	arena = scene.instantiate()
 	add_child(arena)
 	arena.player.landed_hit.connect(func(_a, _b): hits += 1)
 
@@ -50,8 +56,8 @@ func _physics_process(delta: float) -> void:
 			_started = true
 			for e in arena._enemies:
 				e.died.connect(func(_a): kills += 1)
-				e.wounded.connect(func(a, info): print("WOUND %s dmg=%.1f kind=%s at=%s struck=%s prof=%s" % [a.spec["name"], info["damage"], info["kind"], info["rig_name"], info["struck"], info["profile"]]))
-			arena.player.wounded.connect(func(a, info): print("PWOUND dmg=%.1f kind=%s at=%s prof=%s" % [info["damage"], info["kind"], info["rig_name"], info["profile"]]))
+				e.wounded.connect(func(a, info): print("WOUND %s dmg=%.1f v=%.1f part=%s kind=%s at=%s struck=%s prof=%s" % [a.spec["name"], info["damage"], info["speed"], info["part"], info["kind"], info["rig_name"], info["struck"], info["profile"]]))
+			arena.player.wounded.connect(func(a, info): print("PWOUND v=%.1f dmg=%.1f kind=%s at=%s prof=%s" % [info["speed"], info["damage"], info["kind"], info["rig_name"], info["profile"]]))
 			_foes = arena._enemies.size()
 		return
 	_shot_t += delta

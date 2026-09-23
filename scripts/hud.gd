@@ -563,8 +563,9 @@ func show_intro(enc: Dictionary, run: Dictionary, specs: Array) -> void:
 	box.alignment = BoxContainer.ALIGNMENT_END
 	_overlay.add_child(box)
 	var bout := int(enc.get("bout", 0))
-	box.add_child(_label("BOUT %d OF %d  ·  %s  ·  RENOWN %d" % [bout + 1, Tournament.bout_count(),
-		Tournament.standing(bout).to_upper(), int(run.get("renown", 0))], UITheme.display(600), 14, UITheme.BRASS))
+	var header: String = enc.get("header", "BOUT %d OF %d  ·  %s  ·  RENOWN %d" % [bout + 1, Tournament.bout_count(),
+		Tournament.standing(bout).to_upper(), int(run.get("renown", 0))])
+	box.add_child(_label(header, UITheme.display(600), 14, UITheme.BRASS))
 	box.add_child(_label(String(enc.get("title", "")), UITheme.decorative(), 46, UITheme.INK))
 	box.add_child(_label(String(enc.get("blurb", "")), UITheme.body(400), 20, UITheme.INK_DIM))
 	box.add_child(_label(Tournament.format_label(enc.get("format", "duel"), specs.size()).to_upper(),
@@ -579,8 +580,10 @@ func show_intro(enc: Dictionary, run: Dictionary, specs: Array) -> void:
 		var nl := _label(String(sp.get("name", "")), UITheme.display(700), 18, UITheme.INK)
 		nl.autowrap_mode = TextServer.AUTOWRAP_OFF
 		grid.add_child(nl)
-		grid.add_child(_label("%s — %s" % [Armory.rank_name(int(sp.get("rank", 0))), describe_kit(sp)],
-			UITheme.body(), 17, UITheme.INK_DIM))
+		var kl := _label("%s — %s" % [Armory.rank_name(int(sp.get("rank", 0))), describe_kit(sp)],
+			UITheme.body(), 17, UITheme.INK_DIM)
+		kl.autowrap_mode = TextServer.AUTOWRAP_OFF
+		grid.add_child(kl)
 	_intro_hint = _label("Strike to begin", UITheme.display(600), 15, UITheme.INK_FAINT)
 	box.add_child(_intro_hint)
 	var t := _intro_hint.create_tween().set_loops()
@@ -640,6 +643,10 @@ func _choice_panel(title: String, title_color: Color, lines: Array, buttons: Arr
 		first.grab_focus.call_deferred()
 	_overlay.modulate.a = 0.0
 	create_tween().tween_property(_overlay, "modulate:a", 1.0, 0.7)
+
+
+func show_panel(title: String, color: Color, lines: Array, buttons: Array) -> void:
+	_choice_panel(title, color, lines, buttons)
 
 
 func show_victory(enc: Dictionary, run: Dictionary, fallen: Array, weapons: Array, pspec: Dictionary) -> void:
