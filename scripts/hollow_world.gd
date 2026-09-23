@@ -20,6 +20,7 @@ func _ready() -> void:
 	_build_markers()
 	_build_soulfires()
 	_build_ash()
+	_build_moon()
 	_batch_static()
 
 
@@ -41,8 +42,8 @@ func _build_hollow_ground() -> void:
 	m.normal_texture = base.normal_texture
 	m.uv1_scale = Vector3(0.3, 0.3, 0.3)
 	var disc := CylinderMesh.new()
-	disc.top_radius = 60.0
-	disc.bottom_radius = 60.0
+	disc.top_radius = 420.0
+	disc.bottom_radius = 420.0
 	disc.height = 0.04
 	disc.radial_segments = 48
 	disc.material = m
@@ -144,6 +145,34 @@ func _build_soulfires() -> void:
 		f.scale_amount_max = 1.2
 		f.position = pos + Vector3.UP * 1.05
 		add_child(f)
+
+
+## A huge pale moon low over the drowned gate — the one light that is not cold fire.
+func _build_moon() -> void:
+	var q := QuadMesh.new()
+	q.size = Vector2(26, 26)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_texture = soft_dot()
+	m.albedo_color = Color(0.8, 0.86, 0.95, 0.9)
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	m.disable_fog = true
+	q.material = m
+	var mi := MeshInstance3D.new()
+	mi.mesh = q
+	mi.position = Vector3(-35, 32, -150)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	var halo := QuadMesh.new()
+	halo.size = Vector2(90, 90)
+	var hm := m.duplicate() as StandardMaterial3D
+	hm.albedo_color = Color(0.4, 0.5, 0.65, 0.22)
+	halo.material = hm
+	var hi := MeshInstance3D.new()
+	hi.mesh = halo
+	hi.position = mi.position + Vector3(0, 0, 1)
+	add_child(hi)
 
 
 func _build_ash() -> void:
