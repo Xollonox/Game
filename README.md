@@ -1,7 +1,9 @@
 # Bare Steel
 
-A physics-driven medieval melee game in the spirit of [Half Sword](https://store.steampowered.com/app/2397300/Half_Sword/),
-built with Godot 4.7 and Jolt physics. Characters are **active ragdolls**: the
+A physics-driven medieval tournament melee in the spirit of [Half Sword](https://store.steampowered.com/app/2397300/Half_Sword/),
+built with Godot 4.7 and Jolt physics. Climb a seventeen-bout ladder from a
+vagrant's scrap in the mud to a 1v6 Grand Melee; die, and descend into the
+Hollow to face the men you killed. Characters are **active ragdolls**: the
 body is a real physics rig that chases an animated pose, so a solid hit
 overpowers it and the character staggers, goes down, and picks itself back up —
 no canned knockdown animations. Every blade is a real `RigidBody3D` that deals
@@ -15,17 +17,28 @@ damage from its own measured contact speed.
 
 | Input | Action |
 |---|---|
-| `W` `A` `S` `D`, or the on-screen joystick | Move (camera-relative) |
-| `Shift` | Sprint |
-| `Space` / left click, or the on-screen SWING button | Sword swing — a real physics blade, not a hitscan |
-| Right-drag, `Q` / `E`, or a touch drag on the right side of the screen | Orbit the camera |
-| Mouse wheel | Zoom the camera |
-| `Esc` | Pause (settings, restart, leave) |
-| `R` after death | Rise again |
-| `1` / `2` / `3` | Debug: hit yourself light / heavy / crushing |
+| `W` `A` `S` `D`, or the on-screen joystick | Move (camera-relative; squared up to an opponent you move in a guarded gait) |
+| `Space` / left click, or CUT | Cut — the movement you hold picks the line: forward = from above (Oberhau), sideways = level (Mittelhau), back = rising (Unterhau) |
+| `F` / middle click, or THRUST | Thrust |
+| `C` / right mouse (hold), or GUARD | Guard |
+| `X` | Step back out of range |
+| `Shift` | Sprint (cut while sprinting = heavy blow) |
+| `Q` / `E`, middle-drag, touch drag | Turn the camera; `Tab` toggles lock-on |
+| Mouse wheel | Zoom |
+| `Esc` | Pause (settings, leave) |
 
-On a touchscreen, a virtual joystick and swing button appear automatically —
-see `scripts/touch_controls.gd`.
+## The run
+
+- **Tournament ladder** (`scripts/tournament.gd`): 17 bouts across seven ranks — Vagrant, Peasant, Militiaman, Soldier, Veteran, Man-at-Arms, Knight — escalating opponent skill, equipment and numbers: duels, 2v1, free-for-all melees where the fighters kill each other too, gauntlets where they come through the gate one by one, and a 1v6 Grand Melee. A bout director hands out attack tokens so groups circle and wait their turn instead of piling on.
+- **Progression**: renown per bout, a better kit at each rank, and a choice of spoils (the weapons of the fallen) after every win. Persistent in `user://run.cfg`.
+- **Death and the Hollow** (`scenes/hollow.tscn`): death offers *Descend into the Hollow*, *Begin a New Life* or *Return to the Hall*. The Hollow is a drowned ruin of the yard where the shades of the men you killed come for you. Lay them to rest and you climb back to the living; fall there and your name is forgotten.
+
+## Fighters, armour and weapons
+
+- **Characters** (`tools/blender/build_fighter.py`): Quaternius Universal Base Characters human (CC0) with face, hair and beard, UAL1 + UAL2 clips retargeted in world space, and an original IK-authored melee library (`melee_anims.py`) — stances, guards, cuts, thrusts, guarded gaits, flinches, stagger, evade and get-ups per weapon family, built from HEMA body mechanics.
+- **Wardrobe** (`wardrobe.py`, `helmets.py`): shirt, tunic, hose, shoes, boots, gambeson, haubergeon, mail coif, brigandine, full harness and six helmets generated around the body; covered skin zones are hidden.
+- **Wound model** (`KickbackActor.receive_weapon_hit`): cut / pierce / blunt channels against layered armour coverage (`scripts/armory.gd`), momentum knock scaled by worn weight, bleeding, sparks on steel.
+- **Arsenal** (`tools/blender/build_weapons.py`): arming sword, longsword, falchion, rondel dagger, bearded axe, flanged mace, cudgel, war spear, heater shield — each with measured mass, centre of mass and per-part collision boxes, driven as a real body by `PhysicsWeapon`.
 
 ## The world
 
@@ -51,11 +64,15 @@ godot --headless --path .    # run headless
 
 ## Rebuilding the world kit (headless Blender)
 
-The kit, the fixed weapons and the armoured character are all produced without
-the Blender GUI:
+The kit, the arsenal and the fighter are all produced without the Blender GUI
+(Blender 5.2 LTS). The fighter build expects the CC0 Quaternius packs unpacked
+under `$ASSET_SRC` (default `/opt/src`, see `assets/CREDITS.md` for sources):
 
 ```bash
 blender -b --python tools/blender/build_world_kit.py -- --out /data/kit
+blender -b --python tools/blender/build_weapons.py -- --out assets/models/weapons/arsenal
+blender -b --python tools/blender/build_fighter.py -- --out assets/models/characters/fighter
+blender -b --python tools/blender/preview.py -- in.glb out.png --action Cut_Oberhau --frame 15 --weapon assets/models/weapons/arsenal/arming_sword.glb
 ```
 
 Each piece exports as its own GLB with metre scale, base-centre pivot, named
@@ -72,7 +89,9 @@ context, so they run under Xvfb):
 godot --headless --path . res://tests/bench.tscn                 # frame/physics/draw budget
 xvfb-run -a godot --path . res://tests/vision_test.tscn -- --shots=/tmp/vision
 xvfb-run -a godot --path . res://tests/world_vision_test.tscn -- --shots=/tmp/world
-xvfb-run -a godot --path . res://tests/gameplay_test.tscn -- --noblood
+xvfb-run -a godot --path . res://tests/gameplay_test.tscn -- --bout=4 --shots=/tmp/g   # bot plays a bout
+xvfb-run -a godot --path . res://tests/gameplay_test.tscn -- --hollow                   # bot in the Hollow
+xvfb-run -a godot --path . res://tests/fighter_gallery.tscn -- --shots=/tmp/gallery     # one fighter per rank
 ```
 
 `bench.tscn` takes `--noworld` to isolate the world's cost, `gameplay_test.tscn`
