@@ -17,9 +17,13 @@ const MAX_SAMPLES := 16
 const MIN_SPEED := 3.5
 const FADE_SPEED := 7.0
 
-@export var base_local := Vector3(0.0, 0.0, -0.08)
+## Spans the outer half of the blade, not the whole thing. Anchoring the inner
+## edge at the grip made the ribbon a ~0.6 m sheet that read as a white sail
+## dragged behind the character rather than an edge arc (caught in the browser
+## render, where additive blending makes it far louder than it looks in editor).
+@export var base_local := Vector3(0.0, -0.02, -0.34)
 @export var tip_local := Vector3(0.0, -0.05, -0.66)
-@export var color := Color(0.85, 0.88, 1.0)
+@export var color := Color(0.78, 0.84, 1.0)
 
 var source: Node3D
 
@@ -80,9 +84,11 @@ func _rebuild() -> void:
 	for i in count:
 		# Oldest samples are the faint end of the arc.
 		var along := float(i) / float(count - 1)
-		var a := pow(along, 1.6) * 0.55 * _strength
+		var a := pow(along, 1.8) * 0.26 * _strength
 		_im.surface_set_color(Color(color.r, color.g, color.b, a))
 		_im.surface_add_vertex(_base_pts[i])
-		_im.surface_set_color(Color(color.r, color.g, color.b, a * 0.35))
+		# Feathered to nothing at the tip edge so the ribbon has a soft outer
+		# boundary instead of a hard-cut quad edge.
+		_im.surface_set_color(Color(color.r, color.g, color.b, a * 0.08))
 		_im.surface_add_vertex(_tip_pts[i])
 	_im.surface_end()
