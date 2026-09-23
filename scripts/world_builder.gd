@@ -538,19 +538,23 @@ func _build_terrain_dressing() -> void:
 		var r := _rng.randf_range(7.5, 11.5)
 		place("mud_patch_a" if i % 2 == 0 else "mud_patch_b",
 			Vector3(sin(a) * r, 0.0, -cos(a) * r), _rng.randf() * TAU, dress)
-	for i in 4:
-		place("puddle", Vector3(_rng.randf_range(-7.0, 7.0), 0.0, _rng.randf_range(-7.0, 7.0)), 0.0, dress)
+	for i in 3:
+		var a := _rng.randf() * TAU
+		place("puddle", Vector3(sin(a) * 12.5, 0.0, -cos(a) * 12.5), 0.0, dress)
 
 	# Rubble and stone scatter hug the wall line.
 	for i in 10:
 		var a := TAU * float(i) / 10.0 + 0.3
 		var r := WALL_RADIUS - _rng.randf_range(1.2, 2.6)
 		place("rubble_pile", Vector3(sin(a) * r, 0.0, -cos(a) * r), _rng.randf() * TAU, dress)
-	for i in 16:
-		var a := _rng.randf() * TAU
-		var r := _rng.randf_range(9.0, WALL_RADIUS - 1.0)
-		var kind: String = ["rock_a", "rock_b", "rock_c"][i % 3]
-		place(kind, Vector3(sin(a) * r, 0.0, -cos(a) * r), _rng.randf() * TAU, dress)
+	# Straw for the lists: bales stacked against the outside of the fence,
+	# where grooms and squires would have left them.
+	for i in 7:
+		var a := TAU * float(i) / 7.0 + 0.45
+		var r := RING_RADIUS + 1.6
+		place("hay_bale", Vector3(sin(a) * r, 0.0, -cos(a) * r), a + _rng.randf_range(-0.3, 0.3), dress, true)
+		if i % 2 == 0:
+			place("hay_bale", Vector3(sin(a + 0.07) * (r + 0.1), 0.55, -cos(a + 0.07) * (r + 0.1)), a + 0.4, dress)
 
 	# Vegetation: tufts pushed to the wall line and into corners, plus dirt
 	# mounds breaking up the flat apron.

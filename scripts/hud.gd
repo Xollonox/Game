@@ -15,13 +15,17 @@ signal restart_requested
 signal leave_requested
 signal choice_made(kind: String, value: String)
 
-const HINT_DEFAULT := "WASD move · SHIFT sprint · SPACE / LMB cut — steer it with movement · F thrust · C / RMB guard · Q E turn view · TAB lock · ESC pause"
+const HINT_DEFAULT := "WASD move   ·   SPACE/LMB cut (steer with movement)   ·   F thrust   ·   C/RMB guard   ·   SHIFT sprint   ·   ESC pause"
 const HINT_FADE_AFTER := 14.0
 
 var _root: Control
 var _vitals_fill: ProgressBar
 var _vitals_num: Label
 var _enemy_rows: VBoxContainer
+var _enemy_panel: PanelContainer
+var _marker: VBoxContainer
+var _marker_name: Label
+var _marker_bar: ProgressBar
 var _feed: VBoxContainer
 var _hint: Label
 var _hint_timer := 0.0
@@ -94,14 +98,40 @@ func _build_vitals() -> void:
 
 
 func _build_enemies() -> void:
+	_enemy_panel = PanelContainer.new()
+	_enemy_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_enemy_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_enemy_panel.offset_left = -236.0
+	_enemy_panel.offset_top = 20.0
+	_enemy_panel.offset_right = -20.0
+	var sb := UITheme.panel_style(Color(0.03, 0.028, 0.025, 0.55), Color(0, 0, 0, 0), 0)
+	sb.content_margin_left = 12.0
+	sb.content_margin_right = 12.0
+	sb.content_margin_top = 8.0
+	sb.content_margin_bottom = 10.0
+	_enemy_panel.add_theme_stylebox_override("panel", sb)
+	_enemy_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_enemy_panel)
 	_enemy_rows = VBoxContainer.new()
-	_enemy_rows.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_enemy_rows.offset_left = -240.0
-	_enemy_rows.offset_top = 24.0
-	_enemy_rows.offset_right = -28.0
-	_enemy_rows.add_theme_constant_override("separation", 8)
+	_enemy_rows.add_theme_constant_override("separation", 7)
 	_enemy_rows.alignment = BoxContainer.ALIGNMENT_END
-	_root.add_child(_enemy_rows)
+	_enemy_panel.add_child(_enemy_rows)
+	# Marker over the opponent you are squared up to: name and a thin bar.
+	_marker = VBoxContainer.new()
+	_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_marker.add_theme_constant_override("separation", 2)
+	_marker_name = Label.new()
+	_marker_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_marker_name.add_theme_font_override("font", UITheme.display(600))
+	_marker_name.add_theme_font_size_override("font_size", 13)
+	_marker_name.add_theme_color_override("font_color", UITheme.INK)
+	_marker_name.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_marker_name.add_theme_constant_override("outline_size", 4)
+	_marker.add_child(_marker_name)
+	_marker_bar = _bar(Color(0.62, 0.17, 0.13), 90.0, 4.0)
+	_marker.add_child(_centered(_marker_bar))
+	_marker.visible = false
+	_root.add_child(_marker)
 
 
 func _build_feed() -> void:
@@ -129,10 +159,11 @@ func _build_hint() -> void:
 	_hint.add_theme_font_size_override("font_size", 16)
 	_hint.add_theme_color_override("font_color", UITheme.INK_DIM)
 	_hint.text = HINT_DEFAULT
-	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_hint.offset_left = -420.0
-	_hint.offset_right = 420.0
-	_hint.offset_top = -74.0
+	_hint.offset_left = -520.0
+	_hint.offset_right = 520.0
+	_hint.add_theme_font_size_override("font_size", 14)
+	_hint.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	_hint.add_theme_constant_override("outline_size", 4)
 	_root.add_child(_hint)
 
 
@@ -332,6 +363,19 @@ func _rebuild_enemy_rows(entries: Array) -> void:
 		_enemy_cache.append({"name": name_label, "bar": bar})
 
 
+## Places the marker over the locked opponent (screen position of the head).
+func set_target(name_text: String, ratio: float, screen_pos: Vector2, show: bool) -> void:
+	if not _marker:
+		return
+	_marker.visible = show and _enemy_panel.visible
+	if not show:
+		return
+	_marker_name.text = name_text
+	_marker_bar.value = clampf(ratio, 0.0, 1.0) * 100.0
+	_marker.reset_size()
+	_marker.position = screen_pos - Vector2(_marker.size.x * 0.5, _marker.size.y + 6.0)
+
+
 ## One line in the corner feed, e.g. a kill or a telling blow.
 func feed(text: String) -> void:
 	var label := Label.new()
@@ -478,7 +522,9 @@ func fade_out(duration: float) -> void:
 
 
 func _set_fight_hud_visible(on: bool) -> void:
-	for c in [_enemy_rows, _feed, _hint]:
+	if _marker and not on:
+		_marker.visible = false
+	for c in [_enemy_panel, _feed, _hint]:
 		if c:
 			c.visible = on
 	if _vitals_fill:

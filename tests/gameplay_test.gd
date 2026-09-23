@@ -32,6 +32,7 @@ func _ready() -> void:
 			DirAccess.make_dir_recursive_absolute(shots)
 		elif a.begins_with("--limit="):
 			limit = float(a.substr(8))
+	Enemy.debug_log = true
 	GameState.new_run()
 	GameState.run["bout"] = bout
 	var scene := ARENA

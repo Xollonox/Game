@@ -256,6 +256,14 @@ func _update_hud() -> void:
 		entries.append({"name": String(e.spec.get("name", e.name)), "health": e.health, "max": e.max_health,
 			"dead": e.is_dead(), "focus": e == player.get("lock_target")})
 	hud.set_enemies(entries)
+	var lt: KickbackActor = player.get("lock_target")
+	if lt and not lt.is_dead() and phase == Phase.FIGHT:
+		var head := lt.global_position + Vector3.UP * 2.05
+		var vis := not camera.is_position_behind(head)
+		hud.set_target(String(lt.spec.get("name", "")), lt.health / maxf(lt.max_health, 1.0),
+			camera.unproject_position(head), vis)
+	else:
+		hud.set_target("", 0.0, Vector2.ZERO, false)
 
 
 func _check_outcome() -> void:

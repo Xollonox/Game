@@ -20,6 +20,8 @@ signal wants_token(e: Enemy)
 
 enum State { WAIT, CIRCLE, APPROACH, WINDUP, RECOVER, GUARD, BACKOFF }
 
+static var debug_log := false
+
 var team := 1
 var target: KickbackActor
 ## Set by the arena: returns true if this fighter may press its target now.
@@ -110,7 +112,10 @@ func _tick_ai(delta: float) -> void:
 			move_dir = (dir * clampf(radial, -0.8, 0.8) + side * 0.45 + _separation() * 1.2)
 			if target.is_downed():
 				move_dir += side * 0.3
-			if may_press and _timer <= 0.0 and randf() < 0.02 + _aggr * 0.05:
+			# Hazard rate per second: an aggressive man steps in within a beat,
+			# a cautious one waits for the target to overcommit.
+			var eager := (0.6 + _aggr * 1.8) * (2.0 if target.is_swinging() and _skill > 0.5 else 1.0)
+			if may_press and _timer <= 0.0 and randf() < eager * delta:
 				_state = State.APPROACH
 			if randf() < 0.004:
 				_strafe = -_strafe
@@ -125,9 +130,11 @@ func _tick_ai(delta: float) -> void:
 		State.WINDUP:
 			move_dir = side * 0.25 + dir * clampf(dist - _reach * 0.85, -0.5, 0.5)
 			if _timer <= 0.0:
+				if debug_log:
+					print("AI %s windup-done dist=%.2f reach=%.2f" % [spec.get("name", ""), dist, _reach])
 				if dist <= _reach + 0.5 and attack(_choose_attack(), {"ai": true}):
 					_state = State.RECOVER
-					_timer = lerpf(1.5, 0.6, _skill) * float(spec.get("ai", {}).get("cadence", 1.0))
+					_timer = lerpf(1.1, 0.4, _skill) * float(spec.get("ai", {}).get("cadence", 1.0))
 				else:
 					_state = State.APPROACH
 		State.RECOVER:
@@ -140,7 +147,7 @@ func _tick_ai(delta: float) -> void:
 					_timer = 0.1
 				else:
 					_state = State.CIRCLE
-					_timer = randf_range(0.3, 1.4) * (1.4 - _aggr)
+					_timer = randf_range(0.2, 0.9) * (1.3 - _aggr)
 					_strafe = 1.0 if randf() < 0.5 else -1.0
 		State.GUARD:
 			set_guard(true)
