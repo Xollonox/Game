@@ -74,12 +74,12 @@ const MOVES := {
 	},
 	"unarmed": {
 		"cut": [
-			{"anim": "Punch_Jab", "dir": "thrust", "speed": 1.05, "commit": 0.62, "strikers": ["Hand_L", "Hand_R"]},
-			{"anim": "Punch_Cross", "dir": "right", "speed": 1.0, "commit": 0.66, "strikers": ["Hand_R", "Hand_L"]},
-			{"anim": "Melee_Hook", "dir": "left", "speed": 1.0, "commit": 0.7, "strikers": ["Hand_R", "Hand_L"]},
+			{"anim": "Punch_Jab", "dir": "thrust", "speed": 1.4, "commit": 0.62, "strikers": ["Hand_L", "Hand_R"]},
+			{"anim": "Punch_Cross", "dir": "right", "speed": 1.35, "commit": 0.66, "strikers": ["Hand_R", "Hand_L"]},
+			{"anim": "Melee_Hook", "dir": "left", "speed": 1.3, "commit": 0.7, "strikers": ["Hand_R", "Hand_L"]},
 		],
-		"thrust": [{"anim": "Punch_Jab", "dir": "thrust", "speed": 1.05, "commit": 0.62, "strikers": ["Hand_L", "Hand_R"]}],
-		"heavy": [{"anim": "Punch_Cross", "dir": "high", "speed": 0.9, "commit": 0.75, "strikers": ["Hand_R", "Hand_L"]}],
+		"thrust": [{"anim": "Punch_Jab", "dir": "thrust", "speed": 1.4, "commit": 0.62, "strikers": ["Hand_L", "Hand_R"]}],
+		"heavy": [{"anim": "Punch_Cross", "dir": "high", "speed": 1.15, "commit": 0.75, "strikers": ["Hand_R", "Hand_L"]}],
 		# Any fighter can kick, armed or not (see KickbackActor.attack).
 		"kick": [
 			{"anim": "Kick_Front", "dir": "thrust", "speed": 1.0, "commit": 0.8, "move_scale": 0.3,

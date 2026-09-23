@@ -353,18 +353,24 @@ func _check_hits(state: PhysicsDirectBodyState3D) -> void:
 			continue
 		var tid := target_actor.get_instance_id()
 		touches += 1
-		# Contact lifetime: only the first step of a contact is an impact.
+		var phase := "none"
+		if wielder and wielder.weapons_live:
+			phase = wielder.attack_phase()
+		# Contact lifetime: without an attack, only the first step of a
+		# contact is an impact (resting, jitter, a man walking into a still
+		# blade never are). During a swing's live phases the swing's own
+		# motion is judged even if blade and body were already touching —
+		# fighters close in, and a cut started from contact is still a cut —
+		# once per man per swing.
 		if not fresh.has(tid):
 			fresh[tid] = _contacts.touch(tid, now)
-		if not fresh[tid] or struck.has(tid):
+		var swinging := phase in ["accel", "active", "follow"]
+		if (not fresh[tid] and not swinging) or struck.has(tid):
 			continue
 		var serial := wielder.attack_serial if wielder else 0
 		if _contacts.already_hit_this_swing(tid, serial):
 			continue
 		var v_rel := vel - WeaponContactEvaluator.point_velocity(body, point)
-		var phase := "none"
-		if wielder and wielder.weapons_live:
-			phase = wielder.attack_phase()
 		var verdict := WeaponContactEvaluator.evaluate(def, part, state.transform.basis, v_rel,
 			state.get_contact_local_normal(i), mass, phase)
 		last_verdict = verdict

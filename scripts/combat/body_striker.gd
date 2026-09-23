@@ -11,16 +11,17 @@ extends Node
 ## The limb's effective striking mass (an arm behind a fist, a leg behind a
 ## heel) stands in for weapon mass.
 
-const FIST := {"id": "fist", "name": "Fist", "class": "fist", "cut": 0.0, "pierce": 0.0, "blunt": 0.4,
-	"stagger": 0.9, "mass": 2.2, "min_blunt": 3.2, "blunt_energy": 9.0}
-const FOOT := {"id": "foot", "name": "Kick", "class": "foot", "cut": 0.0, "pierce": 0.0, "blunt": 0.55,
-	"stagger": 1.6, "mass": 5.5, "min_blunt": 2.6, "blunt_energy": 16.0}
+const FIST := {"id": "fist", "name": "Fist", "class": "fist", "cut": 0.0, "pierce": 0.0, "blunt": 0.55,
+	"stagger": 1.0, "mass": 3.5, "min_blunt": 2.3, "blunt_energy": 4.0}
+const FOOT := {"id": "foot", "name": "Kick", "class": "foot", "cut": 0.0, "pierce": 0.0, "blunt": 0.6,
+	"stagger": 1.7, "mass": 5.5, "min_blunt": 2.0, "blunt_energy": 8.0}
 const RADIUS := {"fist": 0.075, "foot": 0.1}
 
 var actor: KickbackActor
 var _query := PhysicsShapeQueryParameters3D.new()
 var _sphere := SphereShape3D.new()
-var _logs: Dictionary = {}  # rig -> ContactLog
+var _pending: Dictionary = {}  # target id -> best contact of this strike
+var _struck: Dictionary = {}  # target id -> attack serial already delivered
 
 
 func setup(a: KickbackActor) -> void:
@@ -32,20 +33,31 @@ func setup(a: KickbackActor) -> void:
 
 func _physics_process(_delta: float) -> void:
 	if not actor or actor.is_dead() or actor.is_downed():
+		_pending.clear()
 		return
 	var strikers: Array = actor.current_strikers()
-	if strikers.is_empty():
-		return
 	var phase := actor.attack_phase()
-	if not phase in ["accel", "active", "follow"]:
-		return
+	var live := not strikers.is_empty() and phase in ["accel", "active", "follow"]
+	var touched := {}
+	if live:
+		_scan(strikers, phase, touched)
+	# A strike lands with its hardest moment of contact: while fist or foot
+	# stays on a man, keep the best verdict; deliver it once contact ends or
+	# the strike's live window closes.
+	for tid in _pending.keys():
+		if live and touched.has(tid):
+			continue
+		_deliver(_pending[tid])
+		_pending.erase(tid)
+
+
+func _scan(strikers: Array, phase: String, touched: Dictionary) -> void:
 	var bodies := actor.get_rig_bodies()
 	var exclude: Array[RID] = []
 	for b: RigidBody3D in bodies.values():
 		exclude.append(b.get_rid())
 	_query.exclude = exclude
 	var space := actor.get_world_3d().direct_space_state
-	var now := Time.get_ticks_msec() / 1000.0
 	for rig: String in strikers:
 		var limb: RigidBody3D = bodies.get(rig)
 		if not limb:
@@ -54,9 +66,6 @@ func _physics_process(_delta: float) -> void:
 		var def: Dictionary = FOOT if is_foot else FIST
 		_sphere.radius = RADIUS["foot" if is_foot else "fist"]
 		_query.transform = Transform3D(Basis.IDENTITY, limb.global_position)
-		if not _logs.has(rig):
-			_logs[rig] = WeaponContactEvaluator.ContactLog.new()
-		var clog: WeaponContactEvaluator.ContactLog = _logs[rig]
 		for hit in space.intersect_shape(_query, 4):
 			var body := hit["collider"] as RigidBody3D
 			if not body or not body.has_meta(&"kickback_actor"):
@@ -65,19 +74,31 @@ func _physics_process(_delta: float) -> void:
 			if target == actor or target.is_dead():
 				continue
 			var tid := target.get_instance_id()
-			if not clog.touch(tid, now) or clog.already_hit_this_swing(tid, actor.attack_serial):
-				continue
+			touched[tid] = true
+			if _struck.get(tid, -1) == actor.attack_serial:
+				continue  # once per man per strike
 			var v_rel := limb.linear_velocity - WeaponContactEvaluator.point_velocity(body, limb.global_position)
 			var normal := (body.global_position - limb.global_position).normalized()
 			var verdict := WeaponContactEvaluator.evaluate(def, "head", limb.global_basis, v_rel, normal,
 				float(def["mass"]), phase)
 			if not verdict["valid"]:
 				continue
-			clog.mark_swing(tid, actor.attack_serial)
-			target.receive_weapon_hit({
-				"rig_name": String(body.name), "dir": v_rel.normalized(), "speed": float(verdict["speed"]),
-				"kind": "blunt", "quality": float(verdict["quality"]), "part": "head", "weapon": null,
-				"def": def, "attacker": actor, "point": limb.global_position, "mass": float(def["mass"]),
-			})
-			actor.landed_hit.emit(target.name, "")
-			break
+			var best: Dictionary = _pending.get(tid, {})
+			if best.is_empty() or float(verdict["energy"]) > float(best["verdict"]["energy"]):
+				_pending[tid] = {"verdict": verdict, "target": target, "body": body, "point": limb.global_position,
+					"dir": v_rel.normalized(), "def": def, "serial": actor.attack_serial}
+
+
+func _deliver(p: Dictionary) -> void:
+	var target: KickbackActor = p["target"]
+	if not is_instance_valid(target) or target.is_dead() or not is_instance_valid(p["body"]):
+		return
+	_struck[target.get_instance_id()] = p["serial"]
+	var v: Dictionary = p["verdict"]
+	var def: Dictionary = p["def"]
+	target.receive_weapon_hit({
+		"rig_name": String((p["body"] as RigidBody3D).name), "dir": p["dir"], "speed": float(v["speed"]),
+		"kind": "blunt", "quality": float(v["quality"]), "part": "head", "weapon": null,
+		"def": def, "attacker": actor, "point": p["point"], "mass": float(def["mass"]),
+	})
+	actor.landed_hit.emit(target.name, "")
