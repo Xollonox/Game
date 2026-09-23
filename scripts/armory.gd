@@ -98,14 +98,14 @@ static func roll_fighter(rank: int, rng: RandomNumberGenerator) -> Dictionary:
 			if rng.randf() < 0.6:
 				g.append("G_Shoes")
 			if rng.randf() < 0.3:
-				helm = "G_Hood"
+				helm = "H_PaddedCoif"
 			weapon = pick.call(["cudgel", "cudgel", "rondel_dagger"])
 		1:
 			g.append_array(["G_Tunic", "G_Hose", "G_Shoes", "X_Belt"])
 			if rng.randf() < 0.35:
 				g.erase("G_Tunic")
 				g.append("A_Gambeson")
-			helm = pick.call(["", "G_Hood", "H_PaddedCoif", "G_Cap"])
+			helm = pick.call(["", "H_PaddedCoif", "H_PaddedCoif", "H_Skullcap"])
 			weapon = pick.call(["cudgel", "bearded_axe", "war_spear", "falchion", "rondel_dagger"])
 			shield = weapon in ["falchion", "bearded_axe"] and rng.randf() < 0.25
 		2:

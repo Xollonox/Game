@@ -172,8 +172,8 @@ def main():
 
     path = os.path.join(OUT, "fighter.glb")
     bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", export_animations=True,
-                              export_animation_mode="NLA_TRACKS", export_image_format="JPEG",
-                              export_jpeg_quality=85, export_apply=False)
+                              export_animation_mode="NLA_TRACKS", export_image_format="NONE",
+                              export_apply=False)
     print("FIGHTER_EXPORTED", path, len(kept), "actions")
 
 

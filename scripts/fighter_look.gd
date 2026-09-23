@@ -179,13 +179,16 @@ static func _build(slot: String, spec: Dictionary, tint: Color) -> Material:
 			h.anisotropy = 0.5
 			return h
 		"MI_Eyes":
-			return null
+			var e := StandardMaterial3D.new()
+			e.albedo_texture = _tex("eye_diff.jpg")
+			e.roughness = 0.15
+			return e
 		"G_Linen":
-			return _pbr("linen", tint, 0.95, 0.0, 1.6)
+			return _pbr("linen", tint, 0.95, 0.0, 2.6)
 		"G_Wool", "G_Wool2", "G_Hose":
 			return _pbr("wool", tint * 1.15, 1.0, 0.0, 2.2)
 		"G_Padded":
-			return _pbr("linen", tint, 0.97, 0.0, 1.2)
+			return _pbr("linen", tint, 0.97, 0.0, 3.2)
 		"G_Velvet":
 			var v := _pbr("wool", tint * 1.6, 0.9, 0.0, 3.0)
 			v.rim_enabled = true
@@ -204,7 +207,7 @@ static func _build(slot: String, spec: Dictionary, tint: Color) -> Material:
 			pl.rim = 0.2
 			return pl
 		"A_Iron":
-			return _pbr("plate", Color(0.42, 0.41, 0.4), 0.5, 0.65, 1.0)
+			return _pbr("plate", Color(0.6, 0.58, 0.55), 0.48, 0.55, 1.0)
 		"A_Brass":
 			var b := StandardMaterial3D.new()
 			b.albedo_color = Color(0.72, 0.55, 0.28)
