@@ -52,7 +52,7 @@ func _physics_process(delta: float) -> void:
 	retreat -= delta
 	if not _started:
 		if t > 2.5:
-			_snap("intro")
+			await _snap("intro")
 			arena._start_fight()
 			_started = true
 			for e in arena._enemies:

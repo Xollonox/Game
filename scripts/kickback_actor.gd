@@ -61,6 +61,9 @@ var sprinting := false
 var worn_weight := 0.0
 var bleed := 0.0
 var kills := 0
+## False while a fighter is still waiting to join (marching in, holding by the
+## gate): his weapon collides but wounds no one.
+var weapons_live := true
 var last_attacker: KickbackActor
 
 var _dead := false

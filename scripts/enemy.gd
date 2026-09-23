@@ -37,6 +37,8 @@ var _reach := 1.7
 var _skill := 0.5
 var _aggr := 0.6
 var _spacing := 1.0
+## Where to walk while waiting to engage (entrance march, holding area).
+var walk_to := Vector3.INF
 
 
 func _ready() -> void:
@@ -73,11 +75,21 @@ func _tick_ai(delta: float) -> void:
 		face_dir = Vector3.ZERO
 		set_guard(false)
 		return
+	weapons_live = _engage_delay <= 0.0
 	if _engage_delay > 0.0:
 		_engage_delay -= delta
 		move_dir = Vector3.ZERO
+		face_dir = Vector3.ZERO
+		if walk_to.is_finite():
+			var to := _flat(walk_to - global_position)
+			if to.length() > 0.25:
+				move_dir = to.normalized() * clampf(to.length(), 0.35, 1.0)
+				return
 		if target:
 			face_dir = _flat(target.global_position - global_position)
+		elif _think <= 0.0:
+			_think = 0.5
+			_choose_target()
 		return
 	if _think <= 0.0:
 		_think = 0.4

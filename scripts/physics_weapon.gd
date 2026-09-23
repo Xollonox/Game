@@ -229,7 +229,7 @@ func _check_hits(state: PhysicsDirectBodyState3D) -> void:
 		if body is PhysicsWeapon:
 			_check_clash(point, body, vel, part)
 			continue
-		if _hit_cooldown > 0.0 or speed < MIN_HIT_SPEED:
+		if _hit_cooldown > 0.0 or speed < MIN_HIT_SPEED or (wielder and not wielder.weapons_live):
 			continue
 		if not body is RigidBody3D or not body.has_meta(&"kickback_actor"):
 			continue

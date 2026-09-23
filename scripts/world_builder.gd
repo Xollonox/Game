@@ -293,7 +293,7 @@ func _build_horizon() -> void:
 	var hills := MeshInstance3D.new()
 	hills.mesh = st.commit()
 	var hm := StandardMaterial3D.new()
-	hm.albedo_color = Color(0.2, 0.22, 0.17)
+	hm.albedo_color = Color(0.11, 0.13, 0.09)
 	hm.roughness = 1.0
 	hm.cull_mode = BaseMaterial3D.CULL_DISABLED
 	hills.material_override = hm
@@ -307,7 +307,7 @@ func _build_horizon() -> void:
 	cone.radial_segments = 7
 	cone.rings = 1
 	var tm := StandardMaterial3D.new()
-	tm.albedo_color = Color(0.13, 0.17, 0.12)
+	tm.albedo_color = Color(0.05, 0.075, 0.05)
 	tm.roughness = 1.0
 	cone.material = tm
 	var mm := MultiMesh.new()
@@ -325,6 +325,19 @@ func _build_horizon() -> void:
 	trees.multimesh = mm
 	trees.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(trees)
+	# Upper tier of each fir: a narrower cone set higher, so the silhouette
+	# reads as a conifer rather than a single cone.
+	var mm2 := MultiMesh.new()
+	mm2.transform_format = MultiMesh.TRANSFORM_3D
+	mm2.mesh = cone
+	mm2.instance_count = mm.instance_count
+	for i in mm.instance_count:
+		var t: Transform3D = mm.get_instance_transform(i)
+		mm2.set_instance_transform(i, Transform3D(t.basis.scaled(Vector3(0.62, 0.7, 0.62)), t.origin + Vector3.UP * t.basis.get_scale().y * 3.2))
+	var trees2 := MultiMeshInstance3D.new()
+	trees2.multimesh = mm2
+	trees2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(trees2)
 
 
 # -------------------------------------------------------------- lists -----
@@ -484,15 +497,15 @@ func _build_gate_area() -> void:
 	place("crate", Vector3(-6.3, 0.0, -12.1), 0.3, area)
 	place("crate", Vector3(-6.9, 0.0, -11.3), 0.9, area)
 	place("crate", Vector3(-6.0, 0.0, -12.9), -0.2, area)
-	place("barrel", Vector3(-3.2, 0.0, -12.3), 0.0, area)
-	place("barrel", Vector3(-2.5, 0.0, -12.7), 0.4, area)
-	place("sack", Vector3(-3.6, 0.0, -11.6), 0.0, area)
+	place("barrel", Vector3(-3.9, 0.0, -12.9), 0.0, area)
+	place("barrel", Vector3(-3.4, 0.0, -13.4), 0.4, area)
+	place("sack", Vector3(-4.0, 0.0, -12.2), 0.0, area)
 	place("sack", Vector3(-4.1, 0.0, -11.1), 1.2, area)
 	place("cage", Vector3(4.4, 0.0, -11.8), -0.35, area, true)
 	place("log_pile", Vector3(6.2, 0.0, -11.0), 0.25, area, true)
 	place("hay_bale", Vector3(5.2, 0.0, -12.4), 0.15, area)
 	place("wheel_spare", Vector3(-7.6, 0.0, -10.4), 0.0, area)
-	place("bucket", Vector3(-2.2, 0.0, -11.4), 0.0, area)
+	place("bucket", Vector3(-3.3, 0.0, -11.9), 0.0, area)
 	# Faction banners flanking the gate: the landmark reads from across the yard.
 	_banners.append(place("banner_red", Vector3(-3.4, 0.0, -13.15), 0.0, area, true, 1.0, "", true))
 	_banners.append(place("banner_blue", Vector3(3.4, 0.0, -13.15), 0.0, area, true, 1.0, "", true))
@@ -604,7 +617,7 @@ func _build_fires() -> void:
 	fires.name = "Fires"
 	add_child(fires)
 	var spots := [
-		Vector3(0.0, 0.0, -10.6), Vector3(-10.2, 0.0, 3.4),
+		Vector3(3.7, 0.0, -9.4), Vector3(-10.2, 0.0, 3.4),
 		Vector3(9.6, 0.0, 2.0), Vector3(0.0, 0.0, 10.8),
 	]
 	for i in spots.size():

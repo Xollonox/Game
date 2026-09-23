@@ -40,6 +40,7 @@ var _enemies: Array[Enemy] = []
 var _fallen: Array = []
 var _phase_t := 0.0
 var _intro_orbit := 0.0
+var _intro_mid := Vector3.INF
 
 
 ## Runs top-down, before any child's _ready: the player must be dressed from
@@ -102,12 +103,19 @@ func _spawn_foes() -> void:
 		e.spec = f["spec"]
 		e.team = int(f["team"])
 		e.name = String(f["spec"]["name"]).replace(" ", "_")
-		# Opponents wait in an arc on the far side of the ring, by the gate.
+		# Opponents come out of the gatehouse and walk to their marks in an
+		# arc across the ring; in a gauntlet the ones waiting their turn hold
+		# by the gate.
 		var spread := 0.0 if n == 1 else lerpf(-0.9, 0.9, float(i) / float(n - 1))
-		var pos := Vector3(sin(spread) * 5.2, 0, -cos(spread) * 5.2 - 0.6)
+		var mark := Vector3(sin(spread) * 5.2, 0, -cos(spread) * 5.2 - 0.6)
+		if encounter.get("format", "") == "gauntlet" and i > 0:
+			mark = Vector3(-3.0 + 2.0 * (i - 1), 0, -10.2)
+		# Formed up two ranks deep just inside the gate arch.
+		var gate := Vector3((i % 3 - 1) * 1.8, 0, -10.6 - float(i / 3) * 1.7)
 		add_child(e)
-		e.global_position = pos
-		e.rotation.y = atan2(-pos.x, -pos.z) + PI
+		e.global_position = gate
+		e.rotation.y = 0.0
+		e.walk_to = mark
 		e.set_engage_delay(9999.0)
 		e.token_granted = _grant_token
 		e.landed_hit.connect(_on_enemy_landed_hit)
@@ -131,6 +139,8 @@ func _start_fight() -> void:
 	hud.show_fight_hud(int(encounter.get("bout", 0)) == 0)
 	for e in _enemies:
 		e.set_engage_delay(float(e.get_meta(&"entry")))
+		if float(e.get_meta(&"entry")) < 3.0:
+			e.walk_to = Vector3.INF
 	AudioDirector.crowd_cheer(0.6)
 
 
@@ -220,9 +230,15 @@ func _physics_process(delta: float) -> void:
 	var look := player.global_position + Vector3.UP * 1.1
 	if phase == Phase.INTRO:
 		# The herald's shot: slow arc across the waiting opponents.
-		_intro_orbit += delta * 0.12
-		var mid := Vector3(0, 0, -2.5)
-		var pos := mid + Vector3(sin(0.6 + _intro_orbit) * 8.5, 2.4, cos(0.6 + _intro_orbit) * 8.5)
+		_intro_orbit += delta * 0.1
+		# Frame the opponents as they come out of the gate and take their marks.
+		var mid := Vector3.ZERO
+		for e in _enemies:
+			mid += e.global_position
+		mid = mid / maxf(_enemies.size(), 1) if not _enemies.is_empty() else Vector3(0, 0, -3)
+		_intro_mid = _intro_mid.lerp(mid, clampf(1.5 * delta, 0.0, 1.0)) if _intro_mid.is_finite() else mid
+		mid = _intro_mid
+		var pos := mid + Vector3(sin(0.5 + _intro_orbit) * 6.5, 1.9, cos(0.5 + _intro_orbit) * 6.5)
 		camera.global_position = camera.global_position.lerp(pos, clampf(2.0 * delta, 0.0, 1.0))
 		camera.look_at(mid + Vector3.UP * 1.2)
 		return
