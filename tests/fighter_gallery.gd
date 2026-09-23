@@ -77,15 +77,13 @@ func _run() -> void:
 		for f in _fighters:
 			f.anim.play(_anim)
 	await get_tree().create_timer(0.6).timeout
-	for f in _fighters:
-		var sk: Skeleton3D = f.skeleton
-		var ip := sk.global_transform * sk.get_bone_global_pose(sk.find_bone("index_01_r")).origin
-		var pp := sk.global_transform * sk.get_bone_global_pose(sk.find_bone("pinky_01_r")).origin
-		var hb: RigidBody3D = f.get_rig_bodies()["Hand_R"]
-		var hp := sk.global_transform * sk.get_bone_global_pose(sk.find_bone("hand_r"))
-		print("DBG thumbdir ", (ip - pp).normalized(), " blade ", f.weapon.blade_axis() if f.weapon else Vector3.ZERO,
-			" wpos ", f.weapon.global_position if f.weapon else Vector3.ZERO, " hb ", hb.global_position, " hbone ", hp.origin,
-			" basisdot ", hb.global_basis.x.dot(hp.basis.x.normalized()), " ", hb.global_basis.y.dot(hp.basis.y.normalized()))
+	if "--wound" in OS.get_cmdline_user_args():
+		for f in _fighters:
+			var b: RigidBody3D = f.get_rig_bodies()["Chest"]
+			f._add_wound(b, b.global_position + Vector3(0.05, 0.05, 0.14), 0.09)
+			var h: RigidBody3D = f.get_rig_bodies()["UpperArm_R"]
+			f._add_wound(h, h.global_position + Vector3(0, 0, 0.06), 0.06)
+		await get_tree().create_timer(0.2).timeout
 	await _shot(Vector3(0, 1.5, 7.5), Vector3(0, 0.95, 0), "lineup")
 	for i in _fighters.size():
 		var p: Vector3 = _fighters[i].global_position

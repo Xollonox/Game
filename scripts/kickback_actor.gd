@@ -77,6 +77,8 @@ var _combo := 0
 var _stance_anim := "Sword_Idle"
 var _rng := RandomNumberGenerator.new()
 var _anim_speed := 1.0
+var _blood: ShaderMaterial
+var _wounds: Array = []  # [{body: RigidBody3D, local: Vector3, r: float}]
 
 
 func _ready() -> void:
@@ -98,6 +100,10 @@ func _ready() -> void:
 	var s := float(spec.get("scale", 1.0))
 	model.scale = Vector3.ONE * s
 	FighterLook.apply(model, spec)
+	if not spec.get("shade", false):
+		_blood = ShaderMaterial.new()
+		_blood.shader = preload("res://assets/shaders/wound_overlay.gdshader")
+		_blood.set_shader_parameter("count", 0)
 
 	skeleton = KickbackSetup.find_skeleton(model)
 	if not skeleton:
@@ -439,6 +445,8 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 	if dmg >= 3.0:
 		CombatFX.impact(point, dir, sev)
 		CombatFX.play_wound(point, kind, sev)
+		if prot["remaining"] > 0.35:
+			_add_wound(body, point, clampf(0.04 + dmg / 260.0, 0.04, 0.16))
 		if kind == "cut" and prot["remaining"] > 0.5:
 			bleed += dmg * 0.06
 	elif not hard:
@@ -452,6 +460,41 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 	if _dead and last_attacker and last_attacker != self:
 		last_attacker.kills += 1
 	return result
+
+
+## Keeps a stain on the body where it was struck (see wound_overlay.gdshader).
+func _add_wound(body: RigidBody3D, point: Vector3, radius: float) -> void:
+	if _blood == null or not GameState.blood:
+		return
+	if _wounds.is_empty():
+		for node in model.find_children("*", "MeshInstance3D", true, false):
+			var mi := node as MeshInstance3D
+			if mi.visible and not mi.name.begins_with("Hair") and mi.name != "Eyes" and mi.name != "Eyebrows":
+				mi.material_overlay = _blood
+	# A second blow near an old wound widens it rather than adding a new one.
+	for w in _wounds:
+		if w["body"] == body and (w["local"] as Vector3).distance_to(body.to_local(point)) < 0.08:
+			w["r"] = minf(float(w["r"]) + radius * 0.4, 0.2)
+			return
+	_wounds.append({"body": body, "local": body.to_local(point), "r": radius})
+	if _wounds.size() > 6:
+		_wounds.pop_front()
+
+
+func _process(_delta: float) -> void:
+	if _wounds.is_empty() or _blood == null:
+		return
+	var arr: Array[Vector4] = []
+	for w in _wounds:
+		var b: RigidBody3D = w["body"]
+		if not is_instance_valid(b):
+			continue
+		var p: Vector3 = b.to_global(w["local"])
+		arr.append(Vector4(p.x, p.y, p.z, float(w["r"])))
+	while arr.size() < 6:
+		arr.append(Vector4.ZERO)
+	_blood.set_shader_parameter("wounds", arr)
+	_blood.set_shader_parameter("count", mini(_wounds.size(), 6))
 
 
 func _take_damage(dmg: float) -> void:
