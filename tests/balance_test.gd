@@ -126,7 +126,7 @@ func _run() -> void:
 	_check(a.get_state_name() == "NORMAL", "and recovers his stance (%s)" % a.get_state_name())
 	await get_tree().create_timer(1.0).timeout
 
-	_blow(a, mace, 22.0, "Head")
+	_blow(a, mace, 22.0, "Chest")  # (22 m/s to the head now crushes the skull)
 	var huge := await _watch(a, 9.0)
 	_check("RAGDOLL" in huge["states"], "a huge blow overpowers the rig (%s)" % [huge["states"]])
 	_check("GETTING UP" in huge["states"] and a.get_state_name() == "NORMAL",

@@ -5,8 +5,8 @@ extends Node
 ##   xvfb-run -a godot --path . res://tests/gameplay_test.tscn -- [--bout=N] [--shots=/tmp/g] [--limit=40]
 
 const ARENA := preload("res://scenes/arena.tscn")
-const ENGAGE_RANGE := 1.3
-const STRIKE_RANGE := 1.9
+const ENGAGE_RANGE := 1.15
+const STRIKE_RANGE := 1.45
 var arena
 var t := 0.0
 var attack_cd := 0.0

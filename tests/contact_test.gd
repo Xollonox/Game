@@ -18,6 +18,7 @@ func _check(cond: bool, what: String) -> void:
 
 
 func _ready() -> void:
+	PhysicsWeapon.debug_stats = true
 	_unit_tests()
 	await _live_tests()
 	for l in _log:

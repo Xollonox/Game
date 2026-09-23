@@ -84,6 +84,11 @@ var _attack_move: Dictionary = {}
 var attack_serial := 0
 var _attack_anim := ""
 var balance: ActiveBalance
+## Regional wounds (see InjurySystem) and their live consequences.
+var injuries := InjurySystem.new()
+var injury_speed := 1.0
+var injury_attack_rate := 1.0
+var _injury_tick := 0.0
 var _guarding := false
 var _guard_anim := "Sword_Block"
 var _downed := false
@@ -229,10 +234,12 @@ func _register_held_mass() -> void:
 		_controller.extra_mass_bodies["_shield"] = shield
 
 
-## True while the fighter is deliberately walking or lunging: the balance
+## True while the fighter is deliberately walking or attacking: the balance
 ## layer does not fight intended motion with recovery steps.
 func is_intentionally_moving() -> bool:
-	return move_dir.length_squared() > 0.04 or (_attack_timer > 0.0 and float(_attack_move.get("move_scale", 0.45)) > 0.6)
+	# An attack's footwork (passing steps, lunges) is authored: the capture
+	# point leaves the feet on purpose and the next step catches it.
+	return move_dir.length_squared() > 0.04 or _attack_timer > 0.0 or attack_phase() != "none"
 
 
 func _exit_tree() -> void:
@@ -279,17 +286,22 @@ func grip_offset(side: String, for_shield := false) -> Transform3D:
 func _physics_process(delta: float) -> void:
 	_flinch_timer = maxf(0.0, _flinch_timer - delta)
 	_attack_timer = maxf(0.0, _attack_timer - delta)
-	if bleed > 0.0 and not _dead:
-		health -= bleed * delta
-		bleed = maxf(0.0, bleed - delta * 0.35)
-		if health <= 0.0:
-			health = 0.0
-			_die()
+	if not _dead:
+		var loss := injuries.tick(delta)
+		if loss > 0.0:
+			health -= loss
+			_injury_tick += delta
+			if _injury_tick > 0.25:
+				_injury_tick = 0.0
+				_apply_injury_effects()
+			if health <= 0.0 or injuries.blood < 0.45:
+				health = 0.0
+				_die()
 	if _downed:
 		return
 
 	var moving := move_dir.length_squared() > 0.01
-	var speed := move_speed * (SPRINT_SPEED / WALK_SPEED if sprinting else 1.0) * _gait_scale()
+	var speed := move_speed * (SPRINT_SPEED / WALK_SPEED if sprinting else 1.0) * _gait_scale() * injury_speed
 	if _attack_timer > 0.0:
 		speed *= float(_attack_move.get("move_scale", 0.45))
 	if _guarding:
@@ -380,7 +392,7 @@ func attack(kind: String = "cut", context: Dictionary = {}) -> bool:
 	_guarding = false
 	var handling := float(wdef.get("handling", 1.0)) * float(spec.get("ai", {}).get("cadence", 1.0) if context.get("ai", false) else 1.0)
 	var burden := clampf(1.0 - worn_weight * 0.004, 0.8, 1.0)
-	var rate := float(move.get("speed", 1.0)) * handling * burden
+	var rate := float(move.get("speed", 1.0)) * handling * burden * injury_attack_rate
 	_anim_speed = rate
 	anim.speed_scale = 1.0
 	anim.play(move["anim"], 0.12, rate)
@@ -492,7 +504,13 @@ func receive_hit_at(rig_name: String, hit_dir: Vector3, profile: ImpactProfile) 
 	_take_damage(float(dmg))
 
 
-## The wound model. Returns {profile, damage, struck, kind}.
+## The wound model. Returns {profile, damage, struck, kind, region, ...}.
+##
+## A qualified blow (WeaponContactEvaluator) arrives with its qualifying
+## speed, kind and quality. Armour decides what reaches flesh (cut / pierce
+## against the layer struck) and what is transmitted anyway (blunt trauma
+## through plate); InjurySystem turns that into a regional injury; the rig
+## gets an impulse from the delivered momentum.
 func receive_weapon_hit(info: Dictionary) -> Dictionary:
 	if _dead or not kickback_character or not _rig_builder:
 		return {}
@@ -505,18 +523,28 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 	var kind: String = info["kind"]
 	var speed: float = clampf(info["speed"], 0.0, 22.0)
 	var wmass: float = info.get("mass", 1.2)
+	var quality := float(info.get("quality", 1.0))
 	var channel := float(wdef.get(kind, 0.6))
 	if info.get("part", "") == "haft":
 		channel = 0.35
 		kind = "blunt"
-	var loc := CombatProfiles.location_weight(rig_name)
-	var prot := Armory.protection(spec.get("garments", []), rig_name, kind, _rng)
-	# Guarding with a shield soaks blows landing on the shield arm side.
-	# speed is the evaluator's qualifying component (edge speed for a cut,
-	# axial speed for a thrust, normal speed for a blow); quality folds in
-	# edge alignment and attack phase.
-	var raw := 2.6 * speed * sqrt(wmass / 1.2) * channel * loc * float(info.get("quality", 1.0))
-	var dmg: float = raw * prot["remaining"]
+	var point: Vector3 = info.get("point", body.global_position)
+	var region := InjurySystem.region_for(rig_name, body.to_local(point))
+	var garments: Array = spec.get("garments", [])
+	var prot := Armory.protection(garments, rig_name, kind, _rng)
+	# The blow's wounding potential, independent of where it landed (the
+	# region's anatomy decides what it means).
+	var raw := 2.6 * speed * sqrt(wmass / 1.2) * channel * quality
+	var flesh: float = raw * prot["remaining"]
+	# Blunt trauma transmitted whatever the edge did: plate turns a cut but
+	# the man inside still takes the blow.
+	var blunt_prot := Armory.protection(garments, rig_name, "blunt", _rng)
+	var trauma: float = 2.6 * speed * sqrt(wmass / 1.2) * maxf(float(wdef.get("blunt", 0.25)), 0.25) * quality \
+		* float(blunt_prot["remaining"])
+	if kind == "blunt":
+		trauma = maxf(trauma, flesh)
+	var inj := injuries.apply(region, kind, flesh if kind != "blunt" else flesh * 0.4, trauma)
+
 	# Momentum knock: blunt weapons and heavy blows move even armoured men;
 	# worn weight steadies them.
 	var stability := 1.0 + worn_weight / 28.0
@@ -529,32 +557,61 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 	if _controller:
 		# The stumble drift follows the delivered momentum.
 		_controller.next_stumble_drift = clampf(force * 0.16, 0.3, 3.2)
-	kickback_character.receive_hit(body, dir, info.get("point", body.global_position), profile)
+	kickback_character.receive_hit(body, dir, point, profile)
 	last_attacker = info.get("attacker")
 
-	var point: Vector3 = info.get("point", body.global_position)
 	var hard: bool = prot["hard"] and prot["remaining"] < 0.35
-	var sev := clampf(dmg / 38.0, 0.05, 1.0)
+	var sev := clampf(flesh / 30.0, 0.05, 1.0)
 	if hard:
 		CombatFX.armor_impact(point, dir, clampf(force / 20.0, 0.1, 1.0), String(prot["struck"]))
-	if dmg >= 3.0:
+	if flesh >= 3.0 and kind != "blunt":
 		CombatFX.impact(point, dir, sev)
 		CombatFX.play_wound(point, kind, sev)
-		if prot["remaining"] > 0.35:
-			_add_wound(body, point, clampf(0.04 + dmg / 260.0, 0.04, 0.16))
-		if kind == "cut" and prot["remaining"] > 0.5:
-			bleed += dmg * 0.06
+		_add_wound(body, point, clampf(0.04 + flesh / 220.0, 0.04, 0.16))
 	elif not hard:
-		CombatFX.play_hit(point, sev * 0.6)
-	if hard or dmg < 3.0:
+		CombatFX.play_hit(point, clampf(trauma / 30.0, 0.1, 0.8))
+	if hard or flesh < 3.0:
 		CombatFX.shake_requested.emit(clampf(force / 25.0, 0.1, 0.6))
-	var result := {"profile": String(profile.profile_name), "damage": dmg, "speed": speed, "part": info.get("part", ""), "struck": prot["struck"],
-		"kind": kind, "rig_name": rig_name, "hard": hard}
+	var systemic: float = inj["systemic"]
+	var result := {"profile": String(profile.profile_name), "damage": systemic, "flesh": flesh, "trauma": trauma,
+		"speed": speed, "part": info.get("part", ""), "struck": prot["struck"], "kind": kind, "rig_name": rig_name,
+		"hard": hard, "region": region, "fractured": inj["fractured_now"], "lethal": inj["lethal"]}
 	wounded.emit(self, result)
-	_take_damage(dmg)
+	_apply_injury_effects()
+	if inj["lethal"]:
+		_take_damage(health + 1.0)
+	else:
+		_take_damage(systemic)
 	if _dead and last_attacker and last_attacker != self:
 		last_attacker.kills += 1
 	return result
+
+
+## Pushes the injury state into the body: spring strength per region, weapon
+## control, gait, balance tolerance, concussion. Called after every wound and
+## a few times a second while bleeding.
+func _apply_injury_effects() -> void:
+	if _controller and _controller._spring:
+		_controller._spring.impairment = injuries.rig_impairment()
+	var arm_r := injuries.arm_function("r")
+	var arm_l := injuries.arm_function("l")
+	if is_instance_valid(weapon) and weapon.wielder == self:
+		weapon.control = lerpf(0.3, 1.0, arm_r)
+	if is_instance_valid(shield) and shield.wielder == self:
+		shield.control = lerpf(0.3, 1.0, arm_l)
+	var legs := minf(injuries.leg_function("l"), injuries.leg_function("r"))
+	if balance:
+		balance.leg_function = legs
+	injury_speed = lerpf(0.35, 1.0, (injuries.leg_function("l") + injuries.leg_function("r")) * 0.5) \
+		* lerpf(0.75, 1.0, injuries.core_function())
+	injury_attack_rate = lerpf(0.6, 1.0, arm_r) * lerpf(0.8, 1.0, injuries.core_function())
+	bleed = injuries.total_bleed()
+	if injuries.stun > 0.6 and _controller and _controller.get_state_name() == "NORMAL":
+		# Concussion: the springs go slack for a moment.
+		_controller.request_balance_step(-global_basis.z, 0.6)
+	if legs < 0.12 and not _downed and kickback_character:
+		# The leg gives way.
+		kickback_character.trigger_ragdoll()
 
 
 ## Keeps a stain on the body where it was struck (see wound_overlay.gdshader).
