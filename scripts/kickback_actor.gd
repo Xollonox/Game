@@ -83,6 +83,7 @@ var _attack_move: Dictionary = {}
 ## per swing (see WeaponContactEvaluator.ContactLog).
 var attack_serial := 0
 var _attack_anim := ""
+var balance: ActiveBalance
 var _guarding := false
 var _guard_anim := "Sword_Block"
 var _downed := false
@@ -138,6 +139,7 @@ func _ready() -> void:
 
 	var bone_mapping := SkeletonDetector.detect_humanoid_bones(skeleton)
 	var profile := SkeletonDetector.create_profile_from_skeleton(skeleton, bone_mapping)
+	BodyAnatomy.apply(profile)
 	# Explicit RagdollTuning, never null: KickbackCharacter._ready() calls
 	# configure(profile, tuning) with whatever is passed, and null silently
 	# disables every later hit (see PLAN.md, Phase 2 bug note).
@@ -168,6 +170,11 @@ func _ready() -> void:
 
 	if carries_weapon:
 		_spawn_weapons()
+	balance = ActiveBalance.new()
+	balance.name = "Balance"
+	add_child(balance)
+	balance.setup(self, _controller)
+	_register_held_mass()
 
 
 func _prepare_animations() -> void:
@@ -178,8 +185,11 @@ func _prepare_animations() -> void:
 		for a_name in lib.get_animation_list():
 			var a := lib.get_animation(a_name)
 			var n := String(a_name)
-			var loops := n in LOOPING or n.ends_with("_Walk") or n.ends_with("_Back") or n.ends_with("_StrafeL") \
-				or n.ends_with("_StrafeR")
+			# Gait cycles are "<Stance>_Walk/_Back/_StrafeL/_StrafeR" (melee_anims
+			# locomotion()); a bare ends_with("_Back") also caught GetUp_Back and
+			# Stagger_Back, which then looped (a get-up that restarts mid-rise).
+			var gait := n.ends_with("_Walk") or n.ends_with("_Back") or n.ends_with("_StrafeL") or n.ends_with("_StrafeR")
+			var loops := n in LOOPING or (gait and not n.begins_with("GetUp") and not n in ["Stagger_Back", "Evade_Back"])
 			a.loop_mode = Animation.LOOP_LINEAR if loops else Animation.LOOP_NONE
 
 
@@ -206,6 +216,23 @@ func _spawn_weapons() -> void:
 		shield.apply_heraldry(Heraldry.texture_for(String(spec.get("name", name))))
 		if weapon:
 			weapon.ignore_weapon(shield)
+
+
+## Held weapons count toward the balance centre of mass.
+func _register_held_mass() -> void:
+	if not _controller:
+		return
+	_controller.extra_mass_bodies.clear()
+	if is_instance_valid(weapon) and weapon.wielder == self:
+		_controller.extra_mass_bodies["_weapon"] = weapon
+	if is_instance_valid(shield) and shield.wielder == self:
+		_controller.extra_mass_bodies["_shield"] = shield
+
+
+## True while the fighter is deliberately walking or lunging: the balance
+## layer does not fight intended motion with recovery steps.
+func is_intentionally_moving() -> bool:
+	return move_dir.length_squared() > 0.04 or (_attack_timer > 0.0 and float(_attack_move.get("move_scale", 0.45)) > 0.6)
 
 
 func _exit_tree() -> void:
@@ -496,9 +523,13 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 	var force := speed * wmass * float(wdef.get("stagger", 1.0)) * (1.25 if kind == "blunt" else 1.0) / stability
 	if _guarding:
 		force *= 0.7
-	var profile := CombatProfiles.profile_for_force(force)
+	var margin := balance.margin if balance else 0.1
+	var profile := CombatProfiles.profile_for_blow(force, margin)
 	var dir: Vector3 = info["dir"]
-	kickback_character.receive_hit(body, dir, body.global_position, profile)
+	if _controller:
+		# The stumble drift follows the delivered momentum.
+		_controller.next_stumble_drift = clampf(force * 0.16, 0.3, 3.2)
+	kickback_character.receive_hit(body, dir, info.get("point", body.global_position), profile)
 	last_attacker = info.get("attacker")
 
 	var point: Vector3 = info.get("point", body.global_position)
@@ -619,8 +650,10 @@ func _die() -> void:
 	if anim:
 		anim.pause()
 	if kickback_character:
+		# Persistent ragdoll IS the collapse. (A trigger_ragdoll() after it
+		# would replace PERSISTENT with an ordinary RAGDOLL — and the dead
+		# man would get back up.)
 		kickback_character.set_persistent(true)
-		kickback_character.trigger_ragdoll()
 	# The grip goes slack: the weapon falls from a dead hand.
 	for w in [weapon, shield]:
 		if is_instance_valid(w):
@@ -641,31 +674,22 @@ func get_chest_position() -> Vector3:
 	return b.global_position if b else global_position + Vector3.UP * 1.3
 
 
-func _on_hit_absorbed(rig_name: String, _strength: float) -> void:
+## A blow the springs absorbed: the reaction is the rig itself (the struck
+## region lost strength and was shoved), so no clip is played over it. The
+## fighter only loses a beat of initiative.
+func _on_hit_absorbed(_rig_name: String, _strength: float) -> void:
 	if _attack_timer > 0.0:
 		return
-	_flinch_timer = 0.35
-	if anim:
-		anim.speed_scale = 1.0
-		var a := "Hit_Head" if "Head" in rig_name else "Hit_Chest"
-		if "_L" in rig_name and anim.has_animation("Flinch_L"):
-			a = "Flinch_L"
-		elif "_R" in rig_name and anim.has_animation("Flinch_R"):
-			a = "Flinch_R"
-		elif _rng.randf() < 0.5 and anim.has_animation("Flinch_L"):
-			a = "Flinch_L" if _rng.randf() < 0.5 else "Flinch_R"
-		anim.play(a, 0.08)
+	_flinch_timer = 0.25
 
 
+## Off balance: Kickback steps the feet toward the capture point and relaxes
+## the upper body; the stance keeps playing underneath so the body fights to
+## return to it rather than acting out a canned stagger.
 func _on_stagger_started(_hit_dir: Vector3) -> void:
-	_flinch_timer = 0.7
+	_flinch_timer = 0.6
 	_attack_timer = 0.0
 	_guarding = false
-	if anim:
-		anim.speed_scale = 1.0
-		var opts := ["Hit_Knockback", "Stagger_Back", "Stagger_Back", "Hit_Chest"]
-		var pick: String = opts[_rng.randi() % opts.size()]
-		anim.play(pick if anim.has_animation(pick) else "Hit_Chest", 0.1)
 
 
 func _on_stagger_finished() -> void:
@@ -690,8 +714,16 @@ func _on_recovery_started(face_up: bool) -> void:
 	if anim and not _dead:
 		var getup := AttackLibrary.getup_anim(face_up, anim, _rng)
 		if getup != "":
-			anim.speed_scale = 1.0
+			# The clip is the springs' target while their strength ramps up: it
+			# must last as long as the ramp, or the body is yanked into its last
+			# frame once the springs are strong (the "get-up snap").
+			var ramp := kickback_character.get_active_controller()._tuning.recovery_duration \
+				if kickback_character and kickback_character.get_active_controller() else 2.5
+			anim.speed_scale = clampf(anim.get_animation(getup).length / ramp, 0.4, 1.0)
 			anim.play(getup, 0.15)
+			# The clip holds its last frame until the controller reports the
+			# recovery finished; the stance then cross-fades in (a queued clip
+			# would cut to it with no blend).
 
 
 func _on_recovery_finished() -> void:
@@ -726,6 +758,7 @@ func _make_tuning() -> RagdollTuning:
 static func _stand_tuning() -> RagdollTuning:
 	var t := RagdollTuning.create_game_default()
 	t.strip_root_motion = false
+	BodyAnatomy.tune_balance(t)
 	return t
 
 

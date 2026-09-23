@@ -60,6 +60,10 @@ var _trail: SwordTrail
 var _contacts := WeaponContactEvaluator.ContactLog.new()
 ## The evaluator's last verdict on a body contact (for tests and debugging).
 var last_verdict: Dictionary = {}
+## Diagnostics: tally of evaluator verdicts ("phase:part:reason" -> count)
+## across all weapons while debug_stats is on (gameplay_test turns it on).
+static var debug_stats := false
+static var verdict_stats: Dictionary = {}
 ## Body contacts seen with other fighters (diagnostics).
 var touches := 0
 
@@ -257,6 +261,12 @@ func _check_hits(state: PhysicsDirectBodyState3D) -> void:
 		var verdict := WeaponContactEvaluator.evaluate(def, part, state.transform.basis, v_rel,
 			state.get_contact_local_normal(i), mass, phase)
 		last_verdict = verdict
+		if debug_stats:
+			var u := -1.0
+			if wielder and wielder.anim and wielder.anim.current_animation_length > 0.0 and wielder.is_swinging():
+				u = snappedf(wielder.anim.current_animation_position / wielder.anim.current_animation_length, 0.05)
+			var key := "%s:%s:%s:u%.2f:v%d" % [phase, part, verdict["reason"], u, int(verdict["rel_speed"])]
+			verdict_stats[key] = int(verdict_stats.get(key, 0)) + 1
 		if not verdict["valid"]:
 			continue
 		struck[tid] = true

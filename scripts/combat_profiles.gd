@@ -98,6 +98,37 @@ const HEAVY_FORCE := 8.5
 const CRUSHING_FORCE := 17.0
 
 
+## Continuous profile for a blow that delivered [param force] (momentum units,
+## see KickbackActor.receive_weapon_hit) to a man whose capture point sits
+## [param margin] m inside his support polygon (negative = already off
+## balance). No dice: the impulse, how much of the body is overpowered and
+## whether he goes down all follow from how hard he was hit and how well he
+## was standing. A weak blow bends him, a solid one moves torso and arm and
+## makes him step, a huge one overpowers the rig.
+static func profile_for_blow(force: float, margin: float) -> ImpactProfile:
+	var f := maxf(force, 0.0)
+	var impulse := _piecewise(f, [[0.0, 6.0], [4.0, 14.0], [HEAVY_FORCE, 26.0], [CRUSHING_FORCE, 42.0], [30.0, 55.0]])
+	var spread := 1 if f < 3.0 else (2 if f < HEAVY_FORCE else (7 if f < CRUSHING_FORCE else 99))
+	var reduction := _piecewise(f, [[0.0, 0.5], [HEAVY_FORCE, 0.9], [CRUSHING_FORCE, 1.0]])
+	var steady := maxf(margin, 0.0)
+	var down := f >= CRUSHING_FORCE * (1.0 + steady * 3.0) or (margin < -0.05 and f >= HEAVY_FORCE)
+	var name := &"Light Swing" if f < HEAVY_FORCE else (&"Heavy Swing" if f < CRUSHING_FORCE else &"Crushing Blow")
+	return _make(name, impulse, _piecewise(f, [[0.0, 0.5], [CRUSHING_FORCE, 1.0]]),
+		0.0 if f < HEAVY_FORCE else 0.1, 1.0 if down else 0.0, reduction, spread,
+		_piecewise(f, [[0.0, 0.4], [CRUSHING_FORCE, 0.15]]))
+
+
+static func _piecewise(x: float, pts: Array) -> float:
+	if x <= float(pts[0][0]):
+		return float(pts[0][1])
+	for i in range(1, pts.size()):
+		if x <= float(pts[i][0]):
+			var a: Array = pts[i - 1]
+			var b: Array = pts[i]
+			return lerpf(float(a[1]), float(b[1]), (x - float(a[0])) / (float(b[0]) - float(a[0])))
+	return float(pts[-1][1])
+
+
 static func profile_for_force(force: float) -> ImpactProfile:
 	if force >= CRUSHING_FORCE:
 		return crushing_blow()

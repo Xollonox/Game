@@ -829,7 +829,10 @@ func _update_recovery(delta: float) -> void:
 		var effective_elapsed := maxf(0.0, _recovery_elapsed - delay)
 		var effective_duration := maxf(0.1, _tuning.recovery_duration - delay)
 		var t := clampf(effective_elapsed / effective_duration, 0.0, 1.0)
-		var eased_t := t * t * t  # Cubic ease-in per bone
+		# Bare Steel: smoothstep instead of the cubic ease-in. A cubic keeps the
+		# springs nearly slack for the first half, so the body falls behind the
+		# get-up clip and whips to catch up when they finally stiffen.
+		var eased_t := t * t * (3.0 - 2.0 * t)
 		var target: float = _effective_base_strength(rig_name)
 		_spring.set_bone_strength(rig_name, target * eased_t)
 
@@ -1366,6 +1369,24 @@ func _finish_recovery() -> void:
 	recovery_finished.emit()
 
 
+## Bare Steel: how hard the next stagger shoves the character (m/s of stumble
+## drift). Set by the game right before apply_hit from the blow's delivered
+## momentum; < 0 = the tuning's fixed stumble_push_speed. Consumed once.
+var next_stumble_drift := -1.0
+
+
+## Bare Steel: a balance-driven recovery step with no hit — the capture point
+## has left the support polygon (a lunge overreached, a push, a heavy weapon's
+## follow-through), so step toward where the body is going. Returns false if
+## the character is not standing normally.
+func request_balance_step(direction: Vector3, drift: float) -> bool:
+	if _state != State.NORMAL:
+		return false
+	next_stumble_drift = drift
+	_start_stagger(direction)
+	return true
+
+
 func _start_stagger(hit_dir: Vector3) -> void:
 	_restore_disabled_collisions()
 	_state = State.STAGGER
@@ -1392,7 +1413,7 @@ func _start_stagger(hit_dir: Vector3) -> void:
 	_stumble_dir = Vector3(hit_dir.x, 0.0, hit_dir.z)
 	if _tuning.stumble_enabled and _foot_ik and _character_root and _stumble_dir.length() > 0.01:
 		_stumble_dir = _stumble_dir.normalized()
-		_stumble_drift = _tuning.stumble_push_speed
+		_stumble_drift = next_stumble_drift if next_stumble_drift >= 0.0 else _tuning.stumble_push_speed
 		_stumble_dist_since_step = _tuning.stumble_step_length  # step on the first frame
 		_stumbling = true
 		_windmill_phase = 0.0  # arms windmill for balance for the duration of the stumble
@@ -1404,6 +1425,7 @@ func _start_stagger(hit_dir: Vector3) -> void:
 	if _tuning.brace_strength_bonus > 0.0:
 		_apply_directional_bracing(hit_dir)
 
+	next_stumble_drift = -1.0
 	if _foot_ik:
 		_foot_ik.begin_stagger()
 
@@ -1494,51 +1516,66 @@ func _compute_average_strength_ratio() -> float:
 	return total / float(count) if count > 0 else 1.0
 
 
+## Bare Steel modification: balance is the upstream 0.6 BalanceState (capture
+## point of the linear inverted pendulum against the convex support polygon of
+## the feet actually on the ground) instead of the 0.4 static CoM-over-ankles
+## ratio. Measured at most once per physics tick; the dictionary keeps the 0.4
+## keys every consumer reads.
+var _balance := BalanceState.new()
+## Extra bodies counted in the centre of mass (held weapons, a shield): name ->
+## RigidBody3D. A 2 kg spear held out front moves the CoM like it should.
+var extra_mass_bodies: Dictionary = {}
+var _balance_tick := -1
+var _balance_dict: Dictionary = {}
+
+
 func _compute_balance_state() -> Dictionary:
-	var empty := {"com": Vector3.ZERO, "support_center": Vector3.ZERO, "balance_ratio": 0.0, "imbalance_dir": Vector2.ZERO, "has_support": false}
+	var tick := Engine.get_physics_frames()
+	if tick == _balance_tick and not _balance_dict.is_empty():
+		return _balance_dict
+	var dt := 1.0 / maxf(Engine.physics_ticks_per_second, 1)
+	if _balance_tick >= 0 and tick > _balance_tick:
+		dt *= tick - _balance_tick
+	_balance_tick = tick
+	var g := float(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8))
 	var bodies := _rig_builder.get_bodies()
+	if not extra_mass_bodies.is_empty():
+		bodies = bodies.duplicate()
+		for k: String in extra_mass_bodies:
+			if is_instance_valid(extra_mass_bodies[k]):
+				bodies[k] = extra_mass_bodies[k]
+	_balance.update(bodies, _grounded_feet(bodies), dt, g, _tuning.balance_support_radius_min, _tuning.balance_max_ratio)
+	_balance_dict = _balance.to_dictionary()
+	return _balance_dict
 
-	# Collect the foot bodies that actually exist (role-driven, multi-rig safe).
-	var feet: Array[RigidBody3D] = []
+
+## Feet whose sole is on the ground. Kickback zeroes foot collision masks for
+## foot IK, so contact reports cannot be trusted; a short ray under each foot
+## is (two rays per fighter per tick).
+func _grounded_feet(bodies: Dictionary) -> PackedStringArray:
+	var out := PackedStringArray()
+	var space := get_viewport().world_3d.direct_space_state if is_inside_tree() else null
 	for foot_rig: String in _foot_rigs:
-		var fb: RigidBody3D = bodies.get(foot_rig)
-		if fb:
-			feet.append(fb)
-	if feet.is_empty():
-		return empty
+		var foot: RigidBody3D = bodies.get(foot_rig)
+		if not foot or not space:
+			continue
+		var from := foot.global_position + Vector3.UP * 0.1
+		var q := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 0.32, _tuning.ground_raycast_mask)
+		q.exclude = [foot.get_rid()]
+		var hit := space.intersect_ray(q)
+		if not hit.is_empty() and from.y - float(hit["position"].y) < 0.1 + FOOT_GROUNDED_GAP:
+			out.append(foot_rig)
+	return out
 
-	var com := Vector3.ZERO
-	var total_mass := 0.0
-	for body: RigidBody3D in bodies.values():
-		com += body.global_position * body.mass
-		total_mass += body.mass
-	if total_mass <= 0.001:
-		return empty
-	com /= total_mass
 
-	var support_center := Vector3.ZERO
-	for f: RigidBody3D in feet:
-		support_center += f.global_position
-	support_center /= feet.size()
+## Sole-to-ground gap (m, from the foot body's centre) still counted as planted.
+const FOOT_GROUNDED_GAP := 0.13
 
-	# Support radius = furthest foot from the centre (= half the spread for two feet).
-	var support_radius := _tuning.balance_support_radius_min
-	for f: RigidBody3D in feet:
-		support_radius = maxf(support_radius, f.global_position.distance_to(support_center))
 
-	var com_xz := Vector2(com.x, com.z)
-	var support_xz := Vector2(support_center.x, support_center.z)
-	var offset_vec := com_xz - support_xz
-	var offset := offset_vec.length()
-	var imbalance_dir := offset_vec.normalized() if offset > 0.001 else Vector2.ZERO
-
-	return {
-		"com": com,
-		"support_center": support_center,
-		"balance_ratio": clampf(offset / support_radius, 0.0, _tuning.balance_max_ratio),
-		"imbalance_dir": imbalance_dir,
-		"has_support": true,
-	}
+## The live balance measurement (see BalanceState).
+func get_balance() -> BalanceState:
+	_compute_balance_state()
+	return _balance
 
 
 func _compute_balance_ratio() -> float:

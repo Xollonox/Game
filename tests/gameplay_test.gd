@@ -33,6 +33,7 @@ func _ready() -> void:
 		elif a.begins_with("--limit="):
 			limit = float(a.substr(8))
 	Enemy.debug_log = true
+	PhysicsWeapon.debug_stats = true
 	GameState.new_run()
 	GameState.run["bout"] = bout
 	var scene := ARENA
@@ -75,6 +76,7 @@ func _physics_process(delta: float) -> void:
 	if p.is_dead() or kills >= _foes or t >= limit:
 		_release_all()
 		_done = true
+		print("VERDICTS ", PhysicsWeapon.verdict_stats)
 		print("GAMEPLAY_SUMMARY reason=%s hits=%d kills=%d/%d player_health=%d t=%.1f" % [
 			"cleared" if kills >= _foes else ("player_died" if p.is_dead() else "timeout"),
 			hits, kills, _foes, roundi(p.health), t])
