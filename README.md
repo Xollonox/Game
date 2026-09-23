@@ -92,6 +92,7 @@ xvfb-run -a godot --path . res://tests/world_vision_test.tscn -- --shots=/tmp/wo
 xvfb-run -a godot --path . res://tests/gameplay_test.tscn -- --bout=4 --shots=/tmp/g   # bot plays a bout
 xvfb-run -a godot --path . res://tests/gameplay_test.tscn -- --hollow                   # bot in the Hollow
 xvfb-run -a godot --path . res://tests/fighter_gallery.tscn -- --shots=/tmp/gallery     # one fighter per rank
+xvfb-run -a godot --path . res://tests/flow_test.tscn                                  # full run loop: win, spoils, die, Hollow, return, run over
 ```
 
 `bench.tscn` takes `--noworld` to isolate the world's cost, `gameplay_test.tscn`

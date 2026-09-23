@@ -74,11 +74,9 @@ func _looped(path: String) -> AudioStream:
 		(s as AudioStreamOggVorbis).loop = true
 	elif s is AudioStreamMP3:
 		(s as AudioStreamMP3).loop = true
-	elif s is AudioStreamWAV:
-		var w := s as AudioStreamWAV
-		w.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		w.loop_begin = 0
-		w.loop_end = int(w.get_length() * w.mix_rate)
+	# WAV loops are set in the .import (edit/loop_mode): setting loop_end at
+	# runtime to the full frame count points one frame past the buffer and
+	# the mixer crashes when it wraps.
 	return s
 
 
