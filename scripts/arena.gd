@@ -66,6 +66,7 @@ func _ready() -> void:
 		player.touch_controls = touch_controls
 		player.landed_hit.connect(_on_player_landed_hit)
 		player.died.connect(_on_actor_died)
+		player.wounded.connect(func(_a, info: Dictionary): hud.hurt(clampf(float(info.get("damage", 0.0)) / 30.0, 0.0, 1.0)))
 		player.global_position = Vector3(0, 0, 4.2)
 		player.rotation.y = PI
 	if touch_controls:

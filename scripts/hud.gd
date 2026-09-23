@@ -50,6 +50,7 @@ func _ready() -> void:
 	_build_hint()
 	_build_death()
 	_build_pause()
+	_build_vignette()
 	_build_overlay()
 	_set_fight_hud_visible(false)
 
@@ -319,6 +320,10 @@ func _build_settings() -> VBoxContainer:
 # ---------------------------------------------------------------- API -------
 func set_vitals(health: float, max_health: float) -> void:
 	var ratio := clampf(health / maxf(max_health, 1.0), 0.0, 1.0)
+	_hurt_base = clampf((0.55 - ratio) * 1.2, 0.0, 0.55)
+	if _vignette:
+		_hurt_flash = maxf(0.0, _hurt_flash - get_process_delta_time() * 1.6)
+		_vignette.modulate.a = clampf(_hurt_base + _hurt_flash, 0.0, 1.0)
 	_vitals_fill.value = ratio * 100.0
 	_vitals_num.text = "%d" % roundi(health)
 	var col := UITheme.HEALTH if ratio > 0.35 else UITheme.HEALTH_LOW
@@ -502,8 +507,37 @@ func _spacer(h: float) -> Control:
 
 # ------------------------------------------------------------ overlays ------
 var _overlay: Control
+var _vignette: TextureRect
+var _hurt_flash := 0.0
+var _hurt_base := 0.0
 var _fade_rect: ColorRect
 var _intro_hint: Label
+
+
+func _build_vignette() -> void:
+	var g := Gradient.new()
+	g.set_color(0, Color(0.5, 0.02, 0.02, 0.0))
+	g.set_color(1, Color(0.45, 0.02, 0.02, 0.85))
+	g.add_point(0.55, Color(0.5, 0.02, 0.02, 0.0))
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(1.05, 0.5)
+	_vignette = TextureRect.new()
+	_vignette.texture = gt
+	_vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	_vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_vignette.modulate.a = 0.0
+	_root.add_child(_vignette)
+
+
+## A wound: the vignette flashes, then settles to how hurt you are.
+func hurt(severity: float) -> void:
+	if not _vignette:
+		return
+	_hurt_flash = clampf(_hurt_flash + 0.35 + severity * 0.6, 0.0, 1.0)
 
 
 func _build_overlay() -> void:
@@ -571,6 +605,25 @@ func _gradient_band(from_bottom := true, height := 0.55) -> TextureRect:
 	if not from_bottom:
 		tr.flip_v = true
 	return tr
+
+
+## One-line character of a weapon for the spoils choice.
+static func weapon_note(id: String) -> String:
+	var d := WeaponCatalog.get_def(id)
+	var bits: Array[String] = []
+	var best := "cut"
+	for k in ["cut", "pierce", "blunt"]:
+		if float(d.get(k, 0.0)) > float(d.get(best, 0.0)):
+			best = k
+	bits.append({"cut": "cuts", "pierce": "thrusts", "blunt": "crushes"}[best])
+	if float(d.get("blunt", 0.0)) >= 1.0:
+		bits.append("breaks plate")
+	elif float(d.get("pierce", 0.0)) >= 1.0:
+		bits.append("finds gaps")
+	if int(d.get("hands", 1)) == 2:
+		bits.append("two hands")
+	bits.append("%.1f kg" % float(d.get("mass", 1.0)))
+	return ", ".join(bits)
 
 
 static func describe_kit(spec: Dictionary) -> String:
@@ -737,9 +790,16 @@ func show_victory(enc: Dictionary, run: Dictionary, fallen: Array, weapons: Arra
 		lines.append(["Left in the sand: " + ", ".join(names), 16])
 	lines.append(["", 8])
 	lines.append(["SPOILS OF THE YARD", 14, 700])
+	# Promotion: a new rank brings a better kit.
+	var before := Tournament.rank_for_bout(int(run.get("bout", 1)) - 1)
+	var now := Tournament.rank_for_bout(int(run.get("bout", 0)))
+	if now > before:
+		var kit := Armory.player_kit_for_rank(pspec, now)
+		lines.insert(1, ["RAISED TO %s — you are fitted with %s" % [Armory.rank_name(now).to_upper(),
+			describe_kit(kit).get_slice(" · ", 0)], 17, 700])
 	var buttons := []
 	for w in weapons.slice(0, 3):
-		buttons.append(["Take the %s" % WeaponCatalog.display_name(w).to_lower(), "spoils", w, false])
+		buttons.append(["Take the %s  (%s)" % [WeaponCatalog.display_name(w).to_lower(), weapon_note(w)], "spoils", w, false])
 	buttons.push_front(["Keep your %s" % WeaponCatalog.display_name(pspec.get("weapon", "")).to_lower(), "spoils", "", true])
 	_choice_panel("VICTORY", UITheme.BRASS, lines, buttons)
 

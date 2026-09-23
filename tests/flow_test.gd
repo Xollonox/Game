@@ -63,7 +63,7 @@ func _run() -> void:
 	_check(int(GameState.run["bout"]) == 1, "a yielded opponent wins the bout")
 	_check((GameState.run.get("slain", []) as Array).is_empty(), "sparing him leaves no debt")
 	GameState.new_run()
-	GameState.run["bout"] = 1
+	GameState.run["bout"] = 2
 	await _load("res://scenes/arena.tscn")
 	var arena := _scene()
 	arena._start_fight()
@@ -72,7 +72,10 @@ func _run() -> void:
 		e._take_damage(999.0)
 		e.last_attacker = arena.player
 	await _wait(3.5)
-	_check(int(GameState.run["bout"]) == 2, "victory advances the bout (%d)" % int(GameState.run["bout"]))
+	await _wait(1.8)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("/tmp/flow_victory.png")
+	_check(int(GameState.run["bout"]) == 3, "victory advances the bout (%d)" % int(GameState.run["bout"]))
 	_check(int(GameState.run["renown"]) > 0, "victory awards renown")
 	arena._on_choice("spoils", "bearded_axe")
 	await _changed(arena)
