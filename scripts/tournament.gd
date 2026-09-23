@@ -22,7 +22,7 @@ const LADDER := [
 	{"title": "Two Against One", "ranks": [0, 0], "format": "duel",
 		"blurb": "The yardmaster wants to see if you can count."},
 	# rank 1 — peasants
-	{"title": "The Ploughman", "ranks": [1], "format": "duel",
+	{"title": "Broad Hands", "ranks": [1], "format": "duel",
 		"blurb": "Broad hands, a borrowed weapon and a family to feed."},
 	{"title": "Village Grudge", "ranks": [1, 0, 1], "format": "melee",
 		"blurb": "Three men with old quarrels and you in the middle. Every man for himself."},
@@ -30,7 +30,7 @@ const LADDER := [
 		"blurb": "They fight as one. Keep them in a line."},
 	# rank 2 — militia
 	{"title": "The Watchman", "ranks": [2], "format": "duel",
-		"blurb": "Padded coat, steel cap, drilled on the town square."},
+		"blurb": "Drilled on the town square, and paid to stand his ground."},
 	{"title": "Levy Muster", "ranks": [1, 2, 1], "format": "gauntlet",
 		"blurb": "They come through the gate one by one. Do not let them become three."},
 	{"title": "Pike and Buckler", "ranks": [2, 2], "format": "duel",
@@ -44,7 +44,7 @@ const LADDER := [
 		"blurb": "A sergeant and his two best. Three blades, one of you."},
 	# rank 4 — veterans
 	{"title": "The Veteran", "ranks": [4], "format": "duel",
-		"blurb": "Brigandine, bascinet, and twenty years of killing."},
+		"blurb": "Good steel on his back and twenty years of killing behind it."},
 	{"title": "Wolves at the Gate", "ranks": [3, 4, 3, 3], "format": "gauntlet",
 		"blurb": "Four men released one after another. Keep your back to the stands."},
 	# rank 5 — men-at-arms

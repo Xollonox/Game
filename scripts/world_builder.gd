@@ -299,45 +299,72 @@ func _build_horizon() -> void:
 	hills.material_override = hm
 	hills.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(hills)
-	# Forest belt: one multimesh of low cone trees.
-	var cone := CylinderMesh.new()
-	cone.top_radius = 0.0
-	cone.bottom_radius = 1.6
-	cone.height = 7.0
-	cone.radial_segments = 7
-	cone.rings = 1
+	# Forest belt: crossed-quad billboards with a painted fir silhouette —
+	# reads as trees at any angle, costs two quads each.
+	var tex := _fir_texture()
 	var tm := StandardMaterial3D.new()
-	tm.albedo_color = Color(0.05, 0.075, 0.05)
+	tm.albedo_texture = tex
+	tm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	tm.alpha_scissor_threshold = 0.5
+	tm.cull_mode = BaseMaterial3D.CULL_DISABLED
 	tm.roughness = 1.0
-	cone.material = tm
+	tm.albedo_color = Color(0.8, 0.85, 0.8)
+	var st2 := SurfaceTool.new()
+	st2.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for k in 2:
+		var ax := Vector3(1, 0, 0) if k == 0 else Vector3(0, 0, 1)
+		var q := [-ax * 2.2, ax * 2.2, ax * 2.2 + Vector3.UP * 9.0, -ax * 2.2 + Vector3.UP * 9.0]
+		var uv := [Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0)]
+		for idx in [0, 1, 2, 0, 2, 3]:
+			st2.set_normal(Vector3.UP)
+			st2.set_uv(uv[idx])
+			st2.add_vertex(q[idx])
+	var tree_mesh := st2.commit()
+	tree_mesh.surface_set_material(0, tm)
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = cone
-	mm.instance_count = 420
+	mm.mesh = tree_mesh
+	mm.instance_count = 520
 	for i in mm.instance_count:
 		var a := _rng.randf() * TAU
-		var r := _rng.randf_range(48.0, 110.0)
-		var sc := _rng.randf_range(0.7, 1.6)
-		var t := Transform3D(Basis().scaled(Vector3(sc, sc * _rng.randf_range(0.8, 1.3), sc)),
-			Vector3(sin(a) * r, 3.4 * sc, -cos(a) * r))
+		var r := _rng.randf_range(42.0, 115.0)
+		var sc := _rng.randf_range(0.75, 1.5)
+		var t := Transform3D(Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3(sc, sc * _rng.randf_range(0.85, 1.25), sc)),
+			Vector3(sin(a) * r, -0.2, -cos(a) * r))
 		mm.set_instance_transform(i, t)
 	var trees := MultiMeshInstance3D.new()
 	trees.multimesh = mm
 	trees.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(trees)
-	# Upper tier of each fir: a narrower cone set higher, so the silhouette
-	# reads as a conifer rather than a single cone.
-	var mm2 := MultiMesh.new()
-	mm2.transform_format = MultiMesh.TRANSFORM_3D
-	mm2.mesh = cone
-	mm2.instance_count = mm.instance_count
-	for i in mm.instance_count:
-		var t: Transform3D = mm.get_instance_transform(i)
-		mm2.set_instance_transform(i, Transform3D(t.basis.scaled(Vector3(0.62, 0.7, 0.62)), t.origin + Vector3.UP * t.basis.get_scale().y * 3.2))
-	var trees2 := MultiMeshInstance3D.new()
-	trees2.multimesh = mm2
-	trees2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(trees2)
+
+
+func _fir_texture() -> ImageTexture:
+	var w := 128
+	var h := 256
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 51
+	for y in h:
+		var v := float(y) / h  # 0 top .. 1 bottom
+		if v > 0.93:
+			# Trunk.
+			for x in range(w / 2 - 3, w / 2 + 3):
+				img.set_pixel(x, y, Color(0.12, 0.09, 0.06, 1))
+			continue
+		# Tiered, jagged half-width: each tier flares then pulls in.
+		var tier := fposmod(v * 6.0, 1.0)
+		var half := (0.08 + 0.4 * v) * (0.55 + 0.45 * tier) * w
+		half *= rng.randf_range(0.85, 1.08)
+		for x in w:
+			var d := absf(x - w / 2.0)
+			if d < half:
+				var shade := lerpf(0.6, 1.0, 1.0 - d / maxf(half, 1.0)) * lerpf(1.0, 0.7, tier)
+				var c := Color(0.07, 0.11, 0.07) * shade * rng.randf_range(0.85, 1.15)
+				c.a = 1.0
+				img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
 
 
 # -------------------------------------------------------------- lists -----

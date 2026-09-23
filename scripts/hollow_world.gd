@@ -32,8 +32,8 @@ func _process(delta: float) -> void:
 
 func _build_hollow_ground() -> void:
 	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.17, 0.19, 0.21)
-	m.roughness = 0.35
+	m.albedo_color = Color(0.24, 0.27, 0.3)
+	m.roughness = 0.3
 	m.metallic_specular = 0.6
 	var base := WorldMaterials.get_material("M_Mud")
 	m.albedo_texture = base.albedo_texture
@@ -130,6 +130,7 @@ func _build_soulfires() -> void:
 		fm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 		fm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 		fm.albedo_color = Color(0.5, 0.78, 1.0, 0.55)
+		fm.albedo_texture = soft_dot()
 		q.material = fm
 		f.mesh = q
 		f.amount = 22
@@ -154,6 +155,8 @@ func _build_ash() -> void:
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	m.albedo_color = Color(0.75, 0.8, 0.85, 0.5)
+	m.albedo_texture = soft_dot()
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	q.material = m
 	_ash.mesh = q
 	_ash.amount = 260

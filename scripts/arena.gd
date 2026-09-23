@@ -13,8 +13,8 @@ extends Node3D
 ## you at once) and the wiring to the HUD.
 
 const FIGHTER := preload("res://scenes/dummy.tscn")
-const CAM_HEIGHT := 1.85
-const CAM_DISTANCE := 4.6
+const CAM_HEIGHT := 1.7
+const CAM_DISTANCE := 3.8
 const CAM_LAG := 7.0
 const CAM_ZOOM_MIN := 2.8
 const CAM_ZOOM_MAX := 10.0
@@ -251,7 +251,7 @@ func _physics_process(delta: float) -> void:
 		if to_t.length() > 0.3:
 			var want := atan2(-to_t.x, -to_t.z) + 0.35
 			_cam_yaw = lerp_angle(_cam_yaw, want, clampf(1.6 * delta, 0.0, 1.0))
-			look = look.lerp(tgt.global_position + Vector3.UP * 1.1, 0.35)
+			look = look.lerp(tgt.global_position + Vector3.UP * 1.1, 0.45)
 	var offset := Vector3(sin(_cam_yaw), 0.0, cos(_cam_yaw)) * _cam_dist
 	var target := focus + offset + Vector3.UP * CAM_HEIGHT
 	camera.global_position = camera.global_position.lerp(target, clampf(CAM_LAG * delta, 0.0, 1.0))
@@ -294,6 +294,14 @@ func _check_outcome() -> void:
 func _victory() -> void:
 	phase = Phase.VICTORY
 	AudioDirector.crowd_cheer(1.0)
+	# The last blow lands in slow motion and the yard names it.
+	var last: String = ""
+	for e in _enemies:
+		last = String(e.spec.get("name", ""))
+	hud.show_verdict("%s FALLS" % last.get_slice(" ", 0).to_upper(), "The yard is yours")
+	Engine.time_scale = 0.3
+	await get_tree().create_timer(0.7, true, false, true).timeout
+	Engine.time_scale = 1.0
 	player.emote("Cheer")
 	var fallen_specs: Array = []
 	var weapons: Array[String] = []

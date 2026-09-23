@@ -12,14 +12,14 @@ extends MeshInstance3D
 ## Rebuilt every frame into an ImmediateMesh in world space (top_level), since
 ## the geometry is a history of where the blade *was*, not where it is.
 
-const MAX_SAMPLES := 16
+const MAX_SAMPLES := 8
 ## Below this tip speed (m/s) a swing isn't committed enough to leave an arc.
-const MIN_SPEED := 3.5
-const FADE_SPEED := 7.0
+const MIN_SPEED := 6.0
+const FADE_SPEED := 9.0
 
 @export var base_local := Vector3(0.0, 0.0, -0.08)
 @export var tip_local := Vector3(0.0, -0.05, -0.66)
-@export var color := Color(0.85, 0.88, 1.0)
+@export var color := Color(0.91, 0.89, 0.82)
 
 var source: Node3D
 
@@ -80,9 +80,11 @@ func _rebuild() -> void:
 	for i in count:
 		# Oldest samples are the faint end of the arc.
 		var along := float(i) / float(count - 1)
-		var a := pow(along, 1.6) * 0.55 * _strength
-		_im.surface_set_color(Color(color.r, color.g, color.b, a))
+		# A thin smear along the outer blade, brightest at the tip, gone
+		# within a tenth of a second — motion blur, not a glowing wedge.
+		var a := pow(along, 2.0) * 0.26 * _strength
+		_im.surface_set_color(Color(color.r, color.g, color.b, 0.0))
 		_im.surface_add_vertex(_base_pts[i])
-		_im.surface_set_color(Color(color.r, color.g, color.b, a * 0.35))
+		_im.surface_set_color(Color(color.r, color.g, color.b, a))
 		_im.surface_add_vertex(_tip_pts[i])
 	_im.surface_end()

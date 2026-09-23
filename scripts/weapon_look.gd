@@ -38,9 +38,9 @@ static func get_material(slot: String) -> Material:
 		"W_Leather":
 			m = _tex_mat("res://assets/textures/character/leather", Color(0.7, 0.55, 0.45), 0.72, 0.0, 3.0)
 		"W_Wood":
-			m = _tex_mat("res://assets/textures/world/wood", Color(0.62, 0.46, 0.32), 0.7, 0.0, 2.0)
+			m = _tex_mat("res://assets/textures/world/wood", Color(0.55, 0.4, 0.28), 0.7, 0.0, 0.7)
 		"W_WoodPale":
-			m = _tex_mat("res://assets/textures/world/wood", Color(0.86, 0.72, 0.55), 0.8, 0.0, 2.0)
+			m = _tex_mat("res://assets/textures/world/wood", Color(0.7, 0.56, 0.4), 0.8, 0.0, 0.7)
 		"W_Paint":
 			m = _tex_mat("res://assets/textures/world/wood", Color(0.62, 0.16, 0.11), 0.82, 0.0, 1.2)
 	_cache[slot] = m

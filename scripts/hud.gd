@@ -23,6 +23,7 @@ var _vitals_fill: ProgressBar
 var _vitals_num: Label
 var _enemy_rows: VBoxContainer
 var _enemy_panel: PanelContainer
+var _vitals_plate: PanelContainer
 var _marker: VBoxContainer
 var _marker_name: Label
 var _marker_bar: ProgressBar
@@ -71,10 +72,20 @@ func _build_root() -> void:
 
 
 func _build_vitals() -> void:
+	var plate := PanelContainer.new()
+	plate.position = Vector2(20, 20)
+	var sb := UITheme.panel_style(Color(0.03, 0.028, 0.025, 0.55), Color(0, 0, 0, 0), 0)
+	sb.content_margin_left = 12.0
+	sb.content_margin_right = 14.0
+	sb.content_margin_top = 8.0
+	sb.content_margin_bottom = 10.0
+	plate.add_theme_stylebox_override("panel", sb)
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(plate)
 	var box := VBoxContainer.new()
-	box.position = Vector2(28, 24)
 	box.add_theme_constant_override("separation", 5)
-	_root.add_child(box)
+	plate.add_child(box)
+	_vitals_plate = plate
 
 	var name_label := Label.new()
 	name_label.text = "YOU"
@@ -527,8 +538,8 @@ func _set_fight_hud_visible(on: bool) -> void:
 	for c in [_enemy_panel, _feed, _hint]:
 		if c:
 			c.visible = on
-	if _vitals_fill:
-		_vitals_fill.get_parent().get_parent().visible = on
+	if _vitals_plate:
+		_vitals_plate.visible = on
 
 
 func _clear_overlay() -> void:
@@ -597,37 +608,37 @@ static func describe_kit(spec: Dictionary) -> String:
 func show_intro(enc: Dictionary, run: Dictionary, specs: Array) -> void:
 	_clear_overlay()
 	_set_fight_hud_visible(false)
-	_overlay.add_child(_gradient_band(true, 0.45))
+	_overlay.add_child(_gradient_band(true, 0.55))
 	var box := VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	box.anchor_right = 1.0
 	box.offset_left = 72.0
 	box.offset_right = -72.0
-	box.offset_top = -260.0
-	box.offset_bottom = -28.0
+	box.offset_top = -300.0
+	box.offset_bottom = -30.0
 	box.add_theme_constant_override("separation", 6)
 	box.alignment = BoxContainer.ALIGNMENT_END
 	_overlay.add_child(box)
 	var bout := int(enc.get("bout", 0))
 	var header: String = enc.get("header", "BOUT %d OF %d  ·  %s  ·  RENOWN %d" % [bout + 1, Tournament.bout_count(),
 		Tournament.standing(bout).to_upper(), int(run.get("renown", 0))])
-	box.add_child(_label(header, UITheme.display(600), 14, UITheme.BRASS))
+	box.add_child(_label(header, UITheme.display(600), 14, Color(0.88, 0.75, 0.48)))
 	box.add_child(_label(String(enc.get("title", "")), UITheme.decorative(), 40, UITheme.INK))
 	box.add_child(_label(String(enc.get("blurb", "")), UITheme.body(400), 19, UITheme.INK_DIM))
 	box.add_child(_label(Tournament.format_label(enc.get("format", "duel"), specs.size()).to_upper(),
 		UITheme.display(600), 13, UITheme.BLOOD_BRIGHT))
 	box.add_child(UITheme.rule(420.0))
 	var grid := GridContainer.new()
-	grid.columns = 2
+	grid.columns = 2 if specs.size() <= 3 else 4
 	grid.add_theme_constant_override("h_separation", 26)
 	grid.add_theme_constant_override("v_separation", 2)
 	box.add_child(grid)
 	for sp in specs:
-		var nl := _label(String(sp.get("name", "")), UITheme.display(700), 18, UITheme.INK)
+		var nl := _label(String(sp.get("name", "")), UITheme.display(700), 18 if specs.size() <= 3 else 15, UITheme.INK)
 		nl.autowrap_mode = TextServer.AUTOWRAP_OFF
 		grid.add_child(nl)
 		var kl := _label("%s — %s" % [Armory.rank_name(int(sp.get("rank", 0))), describe_kit(sp)],
-			UITheme.body(), 17, UITheme.INK_DIM)
+			UITheme.body(), 17 if specs.size() <= 3 else 14, UITheme.INK_DIM)
 		kl.autowrap_mode = TextServer.AUTOWRAP_OFF
 		grid.add_child(kl)
 	_intro_hint = _label("Strike to begin", UITheme.display(600), 17, UITheme.INK)
@@ -689,6 +700,30 @@ func _choice_panel(title: String, title_color: Color, lines: Array, buttons: Arr
 		first.grab_focus.call_deferred()
 	_overlay.modulate.a = 0.0
 	create_tween().tween_property(_overlay, "modulate:a", 1.0, 0.7)
+
+
+## A centred one-line verdict over the live scene (the last man falls).
+func show_verdict(title: String, sub: String) -> void:
+	_set_fight_hud_visible(false)
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_CENTER)
+	box.offset_left = -500
+	box.offset_right = 500
+	box.offset_top = -80
+	box.offset_bottom = 40
+	box.add_child(_label(title, UITheme.decorative(), 60, UITheme.INK, HORIZONTAL_ALIGNMENT_CENTER))
+	box.add_child(_label(sub, UITheme.body(), 22, UITheme.INK_DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.35)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_overlay.add_child(dim)
+	_overlay.add_child(box)
+	for l in box.get_children():
+		(l as Label).add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+		(l as Label).add_theme_constant_override("outline_size", 6)
+	_overlay.modulate.a = 0.0
+	create_tween().tween_property(_overlay, "modulate:a", 1.0, 0.25)
 
 
 func show_panel(title: String, color: Color, lines: Array, buttons: Array) -> void:

@@ -27,7 +27,7 @@ const HEALTH := Color(0.66, 0.19, 0.15)
 const HEALTH_LOW := Color(0.85, 0.42, 0.12)
 
 static var _display: FontVariation
-static var _decorative: FontFile
+static var _decorative: FontVariation
 static var _body: FontVariation
 
 
@@ -51,7 +51,10 @@ static func display(weight := 700) -> Font:
 
 static func decorative() -> Font:
 	if _decorative == null:
-		_decorative = load(FONT_DECORATIVE)
+		# Cinzel Decorative's TH/THE ligatures read as a misprint in titles.
+		_decorative = FontVariation.new()
+		_decorative.base_font = load(FONT_DECORATIVE)
+		_decorative.opentype_features = {_tag("liga"): 0, _tag("dlig"): 0, _tag("clig"): 0}
 	return _decorative
 
 

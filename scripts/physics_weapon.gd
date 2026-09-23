@@ -112,6 +112,7 @@ func _ready() -> void:
 		_trail = SwordTrail.new()
 		_trail.source = self
 		_trail.tip_local = tip_local
+		_trail.base_local = tip_local * 0.45
 		add_child(_trail)
 
 
