@@ -89,6 +89,8 @@ var attack_serial := 0
 var _attack_anim := ""
 var balance: ActiveBalance
 var grip: WeaponGrip
+## Ticks (ms) until which a fall counts as caused by a critical blow.
+var _critical_until := 0
 var striker: BodyStriker
 ## Set while reaching for a weapon on the ground (see pick_up()).
 var _pickup_target: PhysicsWeapon
@@ -878,8 +880,12 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 			_downed = true
 	wounded.emit(self, result)
 	if region in ["hand_r", "forearm_r", "upper_arm_r"] and grip:
-		# A blow on the weapon arm jars the grip.
-		grip.shock((trauma + flesh * 0.5) / 7.0, dir)
+		# Only a critical blow on the weapon arm opens the hand.
+		grip.arm_blow(trauma + flesh * 0.5, dir, inj["fractured_now"], sever)
+	if force >= CombatProfiles.CRUSHING_FORCE or inj["lethal"] or sever:
+		# A crushing blow: if it also takes him off his feet, the weapon goes
+		# with the fall (see _on_ragdoll_started).
+		_critical_until = Time.get_ticks_msec() + 700
 	_apply_injury_effects()
 	if inj["lethal"]:
 		_take_damage(health + 1.0)
@@ -1002,11 +1008,9 @@ func yield_fight() -> void:
 ## out of a weak hand.
 func on_weapon_clash(other: PhysicsWeapon, intensity: float) -> void:
 	if is_instance_valid(weapon) and weapon.is_held():
+		# The hand gives with the blow but does not open: a parry is not a
+		# critical hit.
 		weapon.soften(lerpf(0.75, 0.3, intensity), 0.18 + intensity * 0.25)
-		var shock := intensity * 2.4 * sqrt(other.mass / 1.2) if is_instance_valid(other) else intensity * 2.4
-		var away := (weapon.global_position - other.global_position).normalized() if is_instance_valid(other) else Vector3.UP
-		if grip and grip.shock(shock, away):
-			return
 	if _attack_timer > 0.0 and intensity > 0.45:
 		# A hard parry ends the committed part of the attack sooner.
 		_attack_timer = minf(_attack_timer, 0.3)
@@ -1068,11 +1072,13 @@ func _on_stagger_finished() -> void:
 
 func _on_ragdoll_started() -> void:
 	_downed = true
-	# A man knocked off his feet lets go of what is in his hands.
-	if is_instance_valid(weapon):
-		drop_weapon(weapon.linear_velocity * weapon.mass * 0.2)
-	if is_instance_valid(shield):
-		drop_shield()
+	# A man knocked off his feet keeps hold of his weapon and shield unless
+	# a critical blow put him there.
+	if Time.get_ticks_msec() < _critical_until:
+		if is_instance_valid(weapon):
+			drop_weapon(weapon.linear_velocity * weapon.mass * 0.2)
+		if is_instance_valid(shield):
+			drop_shield()
 	# Dust when the body meets the ground, a beat after the fall starts.
 	get_tree().create_timer(0.45).timeout.connect(func():
 		if is_instance_valid(self):
