@@ -45,6 +45,8 @@ func _physics_process(delta: float) -> void:
 		attack("heavy" if sprinting else "cut", {"dir": _line_from_input(input_2d)})
 	elif Input.is_action_just_pressed("thrust"):
 		attack("thrust", {"dir": "thrust"})
+	elif Input.is_action_just_pressed("ultimate"):
+		attack("ultimate")
 	elif Input.is_action_just_pressed("kick"):
 		# Kick: forward/none = push kick to the body, back/side = low kick.
 		attack("kick", {"dir": "thrust" if input_2d.y <= 0.3 and absf(input_2d.x) < 0.5 else "low"})

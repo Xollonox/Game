@@ -20,6 +20,8 @@ const HINT_FADE_AFTER := 14.0
 
 var _root: Control
 var _vitals_fill: ProgressBar
+var _ult_fill: ProgressBar
+var _ult_label: Label
 var _vitals_num: Label
 var _enemy_rows: VBoxContainer
 var _enemy_panel: PanelContainer
@@ -108,6 +110,19 @@ func _build_vitals() -> void:
 	_vitals_num.add_theme_font_size_override("font_size", 15)
 	_vitals_num.add_theme_color_override("font_color", UITheme.INK)
 	row.add_child(_vitals_num)
+
+	# Ultimate meter: fills as blows land; "R" when ready.
+	var urow := HBoxContainer.new()
+	urow.add_theme_constant_override("separation", 10)
+	box.add_child(urow)
+	_ult_fill = _bar(UITheme.BRASS, 264.0, 7.0)
+	urow.add_child(_ult_fill)
+	_ult_label = Label.new()
+	_ult_label.add_theme_font_override("font", UITheme.display(600))
+	_ult_label.add_theme_font_size_override("font_size", 12)
+	_ult_label.add_theme_color_override("font_color", UITheme.INK_DIM)
+	_ult_label.text = "ULT"
+	urow.add_child(_ult_label)
 
 
 func _build_enemies() -> void:
@@ -323,8 +338,9 @@ func _build_settings() -> VBoxContainer:
 	box.add_child(_slider_row("Ambience", GameState.ambience, func(v):
 		GameState.ambience = v
 		GameState.apply()))
-	box.add_child(_toggle_row("Shadows & Effects", GameState.quality_high, func(on):
-		GameState.quality_high = on
+	box.add_child(_quality_row(func(): GameState.cycle_quality()))
+	box.add_child(_toggle_row("Auto Resolution", GameState.auto_resolution, func(on):
+		GameState.auto_resolution = on
 		GameState.apply()))
 	box.add_child(_toggle_row("Blood", GameState.blood, func(on):
 		GameState.blood = on
@@ -333,6 +349,18 @@ func _build_settings() -> VBoxContainer:
 
 
 # ---------------------------------------------------------------- API -------
+## The player's ultimate meter (0..1).
+func set_ultimate(value: float) -> void:
+	if not _ult_fill:
+		return
+	_ult_fill.value = clampf(value, 0.0, 1.0) * 100.0
+	var ready := value >= 1.0
+	_ult_label.text = "ULT [R]" if ready else "ULT"
+	_ult_label.add_theme_color_override("font_color", UITheme.BRASS if ready else UITheme.INK_DIM)
+	# A ready meter breathes so it is noticed mid-fight.
+	_ult_fill.modulate = Color(1.3, 1.2, 0.9) if ready and int(Time.get_ticks_msec() / 350) % 2 == 0 else Color.WHITE
+
+
 func set_vitals(health: float, max_health: float) -> void:
 	var ratio := clampf(health / maxf(max_health, 1.0), 0.0, 1.0)
 	_hurt_base = clampf((0.55 - ratio) * 1.2, 0.0, 0.55)
@@ -862,3 +890,24 @@ func show_death(run: Dictionary, kills: int) -> void:
 		["Begin a New Life", "new_run", ""],
 		["Return to the Hall", "menu", ""],
 	])
+
+
+## Graphics preset: a button cycling Low → Medium → High → Ultra.
+func _quality_row(on_press: Callable) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var l := Label.new()
+	l.text = "Graphics"
+	l.custom_minimum_size = Vector2(180.0, 0.0)
+	l.add_theme_font_size_override("font_size", 16)
+	l.add_theme_color_override("font_color", UITheme.INK_DIM)
+	row.add_child(l)
+	var b := Button.new()
+	b.text = GameState.QUALITY_NAMES[GameState.quality]
+	b.custom_minimum_size = Vector2(120.0, 0.0)
+	b.focus_mode = Control.FOCUS_NONE
+	b.pressed.connect(func():
+		on_press.call()
+		b.text = GameState.QUALITY_NAMES[GameState.quality])
+	row.add_child(b)
+	return row

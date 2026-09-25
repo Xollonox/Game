@@ -56,6 +56,12 @@ func _ready() -> void:
 
 	# Set skeleton modifier callback to Physics so IK and spring resolver stay in sync
 	_skeleton.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_PHYSICS
+	# Bare Steel: the only modifier is PhysicsRigSync, which is read-only for
+	# the physics side (the springs read the rolled-back animation pose). With
+	# physics interpolation on it runs per rendered frame on interpolated
+	# body transforms.
+	if get_tree().physics_interpolation:
+		_skeleton.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_IDLE
 
 	if not character_root_path.is_empty():
 		_character_root = get_node_or_null(character_root_path) as Node3D

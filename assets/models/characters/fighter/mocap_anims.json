@@ -1,0 +1,100 @@
+{
+ "MC_Block_High": {
+  "fps": 30,
+  "frames": 16,
+  "phases": null,
+  "take": "144_26"
+ },
+ "MC_Block_High_L": {
+  "fps": 30,
+  "frames": 16,
+  "phases": null,
+  "take": "144_07"
+ },
+ "MC_Body_Shot": {
+  "fps": 30,
+  "frames": 31,
+  "phases": [
+   0.367,
+   0.533,
+   0.733
+  ],
+  "take": "14_03"
+ },
+ "MC_Cross": {
+  "fps": 30,
+  "frames": 29,
+  "phases": [
+   0.357,
+   0.5,
+   0.714
+  ],
+  "take": "14_02"
+ },
+ "MC_Guard_Box": {
+  "fps": 30,
+  "frames": 25,
+  "phases": null,
+  "take": "14_01"
+ },
+ "MC_Hook": {
+  "fps": 30,
+  "frames": 31,
+  "phases": [
+   0.333,
+   0.533,
+   0.733
+  ],
+  "take": "14_02"
+ },
+ "MC_Jab": {
+  "fps": 30,
+  "frames": 27,
+  "phases": [
+   0.269,
+   0.538,
+   0.808
+  ],
+  "take": "14_01"
+ },
+ "MC_Kick_Front": {
+  "fps": 30,
+  "frames": 45,
+  "phases": [
+   0.273,
+   0.5,
+   0.773
+  ],
+  "take": "135_04"
+ },
+ "MC_Kick_Front_L": {
+  "fps": 30,
+  "frames": 43,
+  "phases": [
+   0.286,
+   0.524,
+   0.69
+  ],
+  "take": "135_04"
+ },
+ "MC_Ultimate_Combo": {
+  "fps": 30,
+  "frames": 111,
+  "phases": [
+   0.773,
+   0.809,
+   0.845
+  ],
+  "take": "141_14"
+ },
+ "MC_Uppercut": {
+  "fps": 30,
+  "frames": 31,
+  "phases": [
+   0.367,
+   0.533,
+   0.733
+  ],
+  "take": "14_03"
+ }
+}

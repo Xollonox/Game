@@ -45,6 +45,12 @@ func _ready() -> void:
 	_build_background()
 	_build_fires()
 	_batch_static()
+	# Crowd and banners sway per rendered frame (see _process).
+	for c in _crowd:
+		c.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	for b in _banners:
+		if b:
+			b.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 
 
 func _process(delta: float) -> void:

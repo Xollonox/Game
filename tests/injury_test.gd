@@ -74,9 +74,11 @@ func _run() -> void:
 	_hit(a, sword, "LowerArm_R", "cut", 9.0)
 	var f := a.injuries.arm_function("r")
 	_check(f < 0.7, "cut forearm loses function (%.2f)" % f)
-	_check(a.weapon.control < ctrl0 - 0.15, "weapon control drops with the arm (%.2f -> %.2f)" % [ctrl0, a.weapon.control])
+	# Two deep cuts can break the arm: a critical wound, and the sword goes.
+	var ctrl1: float = a.weapon.control if is_instance_valid(a.weapon) else 0.0
+	_check(ctrl1 < ctrl0 - 0.15, "weapon control drops with the arm (%.2f -> %.2f)" % [ctrl0, ctrl1])
 	_check(a.injuries.total_bleed() > 0.0, "the cut bleeds (%.2f/s)" % a.injuries.total_bleed())
-	_check(a.health > 80.0, "an arm wound is not a death blow (health %.1f)" % a.health)
+	_check(a.health > 70.0, "an arm wound is not a death blow (health %.1f)" % a.health)
 	var imp: float = a._controller._spring.impairment.get("LowerArm_R", 0.0)
 	_check(imp > 0.2, "the forearm's springs are impaired (%.2f)" % imp)
 

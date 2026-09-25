@@ -166,6 +166,7 @@ func attach_to(actor: KickbackActor, side: String = "R", smooth := false) -> voi
 		collision_mask = WEAPON_MASK & ~1
 	elif grip_body:
 		global_transform = grip_body.global_transform * grip_offset
+		reset_physics_interpolation()
 	if not is_shield and _trail == null and is_inside_tree():
 		_trail = SwordTrail.new()
 		_trail.source = self
@@ -388,6 +389,7 @@ func _check_hits(state: PhysicsDirectBodyState3D) -> void:
 			"rig_name": String(body.name), "dir": v_rel.normalized(), "speed": float(verdict["speed"]),
 			"kind": verdict["kind"], "quality": float(verdict["quality"]), "energy": float(verdict["energy"]),
 			"part": part, "weapon": self, "attacker": wielder, "point": point, "mass": mass,
+			"power": wielder.attack_power() if wielder else 1.0,
 		}
 		var result: Dictionary = target_actor.receive_weapon_hit(info)
 		landed_hit.emit(target_actor.name, String(result.get("profile", "")))

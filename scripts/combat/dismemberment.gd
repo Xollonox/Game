@@ -191,6 +191,7 @@ static func _cap(body: RigidBody3D, pos: Vector3, normal: Vector3, radius: float
 	# Cylinder's axis is Y: point Y along the normal.
 	var basis := Basis.looking_at(n, up) * Basis(Vector3.RIGHT, -PI * 0.5)
 	root.global_transform = Transform3D(basis, pos)
+	root.reset_physics_interpolation()
 	var gore := CombatFX.blood_enabled
 	for part in [[radius, Color(0.45, 0.05, 0.04) if gore else Color(0.22, 0.2, 0.18), 0.012],
 			[radius * 0.28, Color(0.9, 0.86, 0.76) if gore else Color(0.3, 0.28, 0.25), 0.016]]:
