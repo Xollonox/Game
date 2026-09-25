@@ -7,11 +7,16 @@ extends Node
 ## × state (a staggering man grips worse; a falling one lets go) × intent
 ## (a committed attack clenches, an idle guard is looser).
 ##
-## The load is the weapon's own strain (PhysicsWeapon.grip_strain — how far
-## the hand must drag it back, leveraged by mass and length) plus sudden
-## shocks (a hard parry, a blow landing on the weapon arm). Load above
-## strength for a moment, or one shock far above it, tears the weapon loose:
-## it flies on with its own momentum as an ordinary rigid body.
+## A trained man does not let go of his weapon because it was parried, bound,
+## knocked or because he fell over: only a CRITICAL blow tears it loose —
+## a broken or severed weapon arm, a crushing hit on the hand or forearm, or a
+## crushing blow that also throws him off his feet (see
+## KickbackActor.receive_weapon_hit). Everything else is absorbed by the hand
+## spring: a bound blade is pushed aside, a heavy parry jars the arm and the
+## blade lags, but the fist stays closed. The weapon then flies on with its
+## own momentum as an ordinary rigid body.
+##
+## Grip strength only scales how far a critical shock throws the weapon.
 ##
 ## Two-handed weapons: the primary hand drives the weapon's spring; the
 ## secondary hand is not welded — Kickback's arm IK pulls it toward the
@@ -19,11 +24,11 @@ extends Node
 ## a bind twists the blade the off hand follows (or slips) instead of the
 ## weapon snapping back to the animation.
 
-const HOLD_TIME := 0.14      ## s of overload before the grip gives
-const SHOCK_FACTOR := 2.2    ## a single shock this far above strength disarms
+## A blow on the weapon arm at least this severe (trauma + flesh / 2, the
+## same measure InjurySystem uses) is critical even without a fracture.
+const CRITICAL_ARM_BLOW := 26.0
 
 var actor: KickbackActor
-var _overload := 0.0
 var _second_hand_on := false
 
 
@@ -41,22 +46,25 @@ func strength() -> float:
 	if two:
 		arm = arm * 0.65 + actor.injuries.arm_function("l") * 0.35
 	var st := actor.get_state_name()
-	var state_k := 1.0 if st == "NORMAL" else (0.55 if st == "STAGGER" else 0.0)
+	var state_k := 1.0 if st == "NORMAL" else 0.6
 	var intent_k := 1.15 if actor.is_swinging() else 1.0
 	return base * lerpf(0.12, 1.0, arm) * state_k * intent_k
 
 
-## A sudden load on the weapon (a parry, a blow to the arm): disarms at once
-## if it is far beyond what the hand can hold. [param dir] is where the
-## weapon is thrown.
-func shock(amount: float, dir: Vector3) -> bool:
+## A blow landing on the weapon arm. Disarms only when it is critical:
+## [param fractured] / [param severed] this blow, or [param severity]
+## (trauma + flesh / 2) past CRITICAL_ARM_BLOW. [param dir] is where the
+## weapon is thrown. Returns true if the weapon was lost.
+func arm_blow(severity: float, dir: Vector3, fractured := false, severed := false) -> bool:
 	var w := actor.weapon
 	if not is_instance_valid(w) or not w.is_held():
 		return false
-	if amount > strength() * SHOCK_FACTOR:
-		disarm(dir * clampf(amount, 1.0, 6.0))
-		return true
-	return false
+	if not (fractured or severed or severity >= CRITICAL_ARM_BLOW):
+		return false
+	# A weaker hand lets the weapon fly further.
+	var throw := clampf(severity / 8.0, 1.0, 5.0) / maxf(strength(), 0.5)
+	disarm(dir.normalized() * throw)
+	return true
 
 
 func disarm(impulse := Vector3.ZERO) -> void:
@@ -66,24 +74,13 @@ func disarm(impulse := Vector3.ZERO) -> void:
 	actor.drop_weapon(impulse)
 
 
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	if not actor or actor.is_dead():
 		return
 	var w := actor.weapon
 	if not is_instance_valid(w) or not w.is_held():
 		_release_second_hand()
-		_overload = 0.0
 		return
-	var s := strength()
-	if s <= 0.0:
-		return
-	if w.grip_strain > s:
-		_overload += delta
-		if _overload >= HOLD_TIME:
-			disarm(w.linear_velocity * w.mass * 0.25)
-			return
-	else:
-		_overload = maxf(0.0, _overload - delta * 2.0)
 	_track_second_hand(w)
 
 

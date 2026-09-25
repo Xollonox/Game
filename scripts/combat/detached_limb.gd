@@ -31,6 +31,8 @@ static func create(actor: KickbackActor, segs: Array, chain: Array, cut_rig: Str
 	limb.top_level = true
 	actor.get_parent().add_child(limb)
 	limb.global_transform = Transform3D.IDENTITY
+	# Posed bone by bone from its bodies each tick, not interpolated.
+	limb.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	var sk := Skeleton3D.new()
 	sk.name = "Skeleton"
 	limb.add_child(sk)

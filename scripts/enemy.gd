@@ -236,6 +236,9 @@ func _choose_attack() -> String:
 	# Kicks: a bare-handed man kicks often; an armed one now and then, to
 	# break a guard or a bind (skilled fighters more than novices).
 	var close := target.global_position.distance_to(global_position) < 1.05
+	# A charged ultimate is spent at the first good opening.
+	if ultimate_ready() and randf() < 0.35 + _aggr * 0.3:
+		return "ultimate"
 	if close and randf() < (0.35 if fam == "unarmed" else 0.08 + _skill * 0.08):
 		return "kick"
 	var armoured := Armory.worn_weight(target.spec.get("garments", [])) > 14.0

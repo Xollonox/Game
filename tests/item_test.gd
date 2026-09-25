@@ -108,17 +108,29 @@ func _run() -> void:
 	# weapon moves ~0.1 m per tick (6 m/s).
 	_check(max_jump < 0.15, "no teleport: the weapon never jumps (max %.3f m/tick)" % max_jump)
 
-	# 4. A hard parry tears a weapon out of a wounded hand, not a sound one.
+	# 4. Only a critical blow opens the hand: parries, a light cut on the
+	# hand, a parry on a wounded hand and an ordinary knockdown all leave the
+	# weapon held.
 	var d := _fighter(Vector3(3, 0, 0), "arming_sword")
 	var e := _fighter(Vector3(-3, 0, 0), "arming_sword")
 	await get_tree().create_timer(1.5).timeout
-	e.on_weapon_clash(tool_sword, 0.8)
-	_check(is_instance_valid(e.weapon), "a sound grip survives a hard parry")
-	_cut(d, tool_sword, "Hand_R", 5.0)
+	e.on_weapon_clash(tool_sword, 1.0)
+	_check(is_instance_valid(e.weapon), "a sound grip survives the hardest parry")
+	_cut(d, tool_sword, "Hand_R", 3.0)
 	await get_tree().physics_frame
+	_check(is_instance_valid(d.weapon), "a light cut on the hand does not disarm")
 	if is_instance_valid(d.weapon):
-		d.on_weapon_clash(tool_sword, 0.8)
-	_check(not is_instance_valid(d.weapon), "the same parry disarms a wounded hand")
+		d.on_weapon_clash(tool_sword, 1.0)
+	_check(is_instance_valid(d.weapon), "a parry on a wounded hand does not disarm either")
+	if d.kickback_character:
+		d.kickback_character.trigger_ragdoll()
+	await get_tree().create_timer(0.3).timeout
+	_check(is_instance_valid(d.weapon), "an ordinary fall keeps the weapon in hand")
+	var g := _fighter(Vector3(6, 0, 3), "arming_sword")
+	await get_tree().create_timer(1.5).timeout
+	_cut(g, tool_sword, "LowerArm_R", 14.0)
+	await get_tree().physics_frame
+	_check(not is_instance_valid(g.weapon), "a critical blow on the sword arm tears the weapon loose")
 
 	# 5. Death releases the weapon.
 	var dw: PhysicsWeapon = e.weapon

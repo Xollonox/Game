@@ -79,7 +79,13 @@ func _process_modification_with_delta(_delta: float) -> void:
 	if _ordered.is_empty():
 		return
 
-	var skel_inv := _skeleton.global_transform.affine_inverse()
+	# Bare Steel: with physics interpolation on, the modifier runs every
+	# rendered frame (see KickbackCharacter) and poses the skin from the
+	# interpolated body transforms, so the fighters move smoothly at any
+	# refresh rate instead of stepping at the physics tick.
+	var interp := _skeleton.is_physics_interpolated_and_enabled()
+	var skel_xf := _skeleton.get_global_transform_interpolated() if interp else _skeleton.global_transform
+	var skel_inv := skel_xf.affine_inverse()
 	var bodies := _rig_builder.get_bodies()
 	for entry: Dictionary in _ordered:
 		if _frozen.has(entry.bone_idx):
@@ -92,15 +98,21 @@ func _process_modification_with_delta(_delta: float) -> void:
 		match entry.kind:
 			"body":
 				var body: RigidBody3D = entry.body
-				_set_bone(entry.bone_idx, skel_inv * body.global_transform)
+				_set_bone(entry.bone_idx, skel_inv * _xf(body, interp))
 			"intermediate":
 				var body_a: RigidBody3D = bodies.get(entry.body_a)
 				var body_b: RigidBody3D = bodies.get(entry.body_b)
 				if not body_a or not body_b:
 					continue
-				var mid := body_a.global_position.lerp(body_b.global_position, entry.weight)
-				var basis_src: Basis = body_a.global_basis if entry.use_a_basis else body_b.global_basis
+				var xa := _xf(body_a, interp)
+				var xb := _xf(body_b, interp)
+				var mid := xa.origin.lerp(xb.origin, entry.weight)
+				var basis_src: Basis = xa.basis if entry.use_a_basis else xb.basis
 				_set_bone(entry.bone_idx, skel_inv * Transform3D(basis_src, mid))
+
+
+static func _xf(body: Node3D, interp: bool) -> Transform3D:
+	return body.get_global_transform_interpolated() if interp else body.global_transform
 
 
 ## Bare Steel: bone idx -> pose relative to its parent, for severed limbs.

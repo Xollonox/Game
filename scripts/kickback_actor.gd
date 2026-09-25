@@ -20,6 +20,8 @@ signal weapon_dropped(actor: KickbackActor, w: PhysicsWeapon)
 signal severed_limb(actor: KickbackActor, region: String)
 signal armour_changed(actor: KickbackActor, item_id: String)
 signal weapon_taken(actor: KickbackActor, w: PhysicsWeapon)
+## The ultimate meter moved (0..1; 1 = ready).
+signal ultimate_changed(actor: KickbackActor, value: float)
 
 const WALK_SPEED := 2.5
 const SPRINT_SPEED := 4.6
@@ -27,7 +29,7 @@ const TURN_SPEED := 10.0
 const FOOTSTEP_DISTANCE := 1.35
 const FIGHTER_SCENE := preload("res://assets/models/characters/fighter/fighter.glb")
 
-const LOOPING := ["Idle", "Walk", "Jog", "Sprint", "Sword_Idle", "Crouch_Idle", "Walk_Formal", "Idle_Talking",
+const LOOPING := ["MC_Guard_Box", "Idle", "Walk", "Jog", "Sprint", "Sword_Idle", "Crouch_Idle", "Walk_Formal", "Idle_Talking",
 	"Sitting_Idle", "Shield_Idle", "Idle_FoldArms", "Zombie_Idle", "Zombie_Walk", "Guard_High", "Guard_Mid",
 	"Guard_Low", "Guard_Longsword", "Guard_Spear", "Stance_Idle", "Stance_Idle_2", "Walk_Guard", "Walk_Back",
 	"Strafe_L", "Strafe_R", "Idle_Wounded", "Walk_Wounded", "Cheer", "Stance_Sword", "Stance_Blunt",
@@ -86,9 +88,21 @@ var _attack_move: Dictionary = {}
 ## Increments with every attack, so a weapon can score one blow per target
 ## per swing (see WeaponContactEvaluator.ContactLog).
 var attack_serial := 0
+## Ultimate meter, 0..1: filled by landing blows (and a little by taking
+## them); at 1 the fighter may unleash his ultimate (see attack("ultimate")).
+var ultimate := 0.0
+const ULT_GAIN_HIT := 0.16
+const ULT_GAIN_HURT := 0.05
+## Next entry of the current move's "hits" (multi-strike combos).
+var _hit_idx := 0
+## Real motion capture (tools/blender/mocap_anims.py), shared by every fighter.
+const MOCAP_SCENE := "res://assets/models/characters/fighter/mocap_anims.glb"
+static var _mocap_loaded := false
 var _attack_anim := ""
 var balance: ActiveBalance
 var grip: WeaponGrip
+## Ticks (ms) until which a fall counts as caused by a critical blow.
+var _critical_until := 0
 var striker: BodyStriker
 ## Set while reaching for a weapon on the ground (see pick_up()).
 var _pickup_target: PhysicsWeapon
@@ -140,6 +154,11 @@ func _ready() -> void:
 		push_error("%s: no Skeleton3D found under Model" % name)
 		return
 	anim = _find_animation_player(model)
+	if anim:
+		# The animation is the target the physics rig chases: advance it on
+		# the physics tick so it never outruns the simulation when a slow
+		# device renders fewer frames than the physics steps.
+		anim.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_PHYSICS
 	_prepare_animations()
 	_stance_anim = spec.get("stance_override", _stance_for_weapon())
 	if spec.get("shade", false):
@@ -203,6 +222,7 @@ func _ready() -> void:
 func _prepare_animations() -> void:
 	if not anim:
 		return
+	_add_mocap(anim)
 	for lib_name in anim.get_animation_library_list():
 		var lib := anim.get_animation_library(lib_name)
 		for a_name in lib.get_animation_list():
@@ -214,6 +234,45 @@ func _prepare_animations() -> void:
 			var gait := n.ends_with("_Walk") or n.ends_with("_Back") or n.ends_with("_StrafeL") or n.ends_with("_StrafeR")
 			var loops := n in LOOPING or (gait and not n.begins_with("GetUp") and not n in ["Stagger_Back", "Evade_Back"])
 			a.loop_mode = Animation.LOOP_LINEAR if loops else Animation.LOOP_NONE
+
+
+## Adds the mocap clips to the fighter's animation library (once: every
+## fighter instance shares the imported library). Both files carry the same
+## Fighter/Skeleton3D hierarchy, so the tracks bind as they are.
+static func _add_mocap(ap: AnimationPlayer) -> void:
+	var lib := ap.get_animation_library(&"")
+	if not lib or lib.has_animation(&"MC_Jab") or _mocap_loaded:
+		return
+	_mocap_loaded = true
+	if not ResourceLoader.exists(MOCAP_SCENE):
+		return
+	var inst := (load(MOCAP_SCENE) as PackedScene).instantiate()
+	var src := _find_animation_player(inst)
+	if src:
+		# Mocap carries no fingers: close the fists with the finger pose of
+		# the library's own punch, so blows land with a fist, not a flat hand.
+		var fist: Animation = lib.get_animation(&"Punch_Jab") if lib.has_animation(&"Punch_Jab") else null
+		for n in src.get_animation_list():
+			if String(n).begins_with("MC_") and not lib.has_animation(n):
+				var a := (src.get_animation(n) as Animation).duplicate(true) as Animation
+				if fist:
+					_copy_fingers(fist, a)
+				lib.add_animation(n, a)
+	inst.free()
+
+
+static func _copy_fingers(from: Animation, to: Animation) -> void:
+	for i in from.get_track_count():
+		var path := from.track_get_path(i)
+		var bone := String(path.get_concatenated_subnames())
+		if not (bone.begins_with("index_") or bone.begins_with("middle_") or bone.begins_with("ring_")
+				or bone.begins_with("pinky_") or bone.begins_with("thumb_")):
+			continue
+		if from.track_get_type(i) != Animation.TYPE_ROTATION_3D or to.find_track(path, Animation.TYPE_ROTATION_3D) >= 0:
+			continue
+		var t := to.add_track(Animation.TYPE_ROTATION_3D)
+		to.track_set_path(t, path)
+		to.rotation_track_insert_key(t, 0.0, from.rotation_track_interpolate(i, from.length * 0.5))
 
 
 func _stance_for_weapon() -> String:
@@ -459,6 +518,7 @@ func _spawn_armour(id: String, pos: Vector3, vel: Vector3) -> ArmourItem:
 		return null
 	get_parent().add_child(it)
 	it.global_position = pos
+	it.reset_physics_interpolation()
 	it.linear_velocity = vel
 	it.angular_velocity = Vector3(randf_range(-6, 6), randf_range(-6, 6), randf_range(-6, 6)) * (vel.length() / 4.0)
 	return it
@@ -551,6 +611,7 @@ func grip_offset(side: String, for_shield := false) -> Transform3D:
 func _physics_process(delta: float) -> void:
 	_flinch_timer = maxf(0.0, _flinch_timer - delta)
 	_attack_timer = maxf(0.0, _attack_timer - delta)
+	_advance_hits()
 	if not _dead:
 		var loss := injuries.tick(delta)
 		if loss > 0.0:
@@ -657,9 +718,19 @@ func attack(kind: String = "cut", context: Dictionary = {}) -> bool:
 	var family: String = wdef.get("attacks", "sword") if wid != "" else "unarmed"
 	if kind == "kick":
 		family = "unarmed"  # anyone can kick, sword in hand or not
-	var move: Dictionary = AttackLibrary.pick(family, kind, _combo, context, anim, _rng)
+	var move: Dictionary
+	if kind == "ultimate":
+		if ultimate < 1.0:
+			return false
+		move = AttackLibrary.ultimate(family, anim, _rng)
+	else:
+		move = AttackLibrary.pick(family, kind, _combo, context, anim, _rng)
 	if move.is_empty():
 		return false
+	if kind == "ultimate":
+		_set_ultimate(0.0)
+		CombatFX.shake_requested.emit(0.35)
+		CombatFX.play_swish(global_position + Vector3.UP * 1.3, 1.0)
 	_combo += 1
 	_guarding = false
 	var handling := float(wdef.get("handling", 1.0)) * float(spec.get("ai", {}).get("cadence", 1.0) if context.get("ai", false) else 1.0)
@@ -673,6 +744,7 @@ func attack(kind: String = "cut", context: Dictionary = {}) -> bool:
 	_attack_move = move
 	_attack_anim = move["anim"]
 	attack_serial += 1
+	_hit_idx = 0
 	CombatFX.play_cloth(global_position + Vector3.UP, worn_weight)
 	return true
 
@@ -708,7 +780,7 @@ func set_guard(on: bool, threat: PhysicsWeapon = null) -> void:
 		return
 	if on:
 		var wid: String = spec.get("weapon", "")
-		var fam: String = WeaponCatalog.get_def(wid).get("attacks", "sword")
+		var fam: String = WeaponCatalog.get_def(wid).get("attacks", "sword") if wid != "" else "unarmed"
 		var line := ""
 		if threat and is_instance_valid(threat):
 			var local := global_transform.affine_inverse() * threat.get_tip_position()
@@ -721,6 +793,44 @@ func set_guard(on: bool, threat: PhysicsWeapon = null) -> void:
 				line = "high"
 		_guard_anim = AttackLibrary.guard_anim(fam, spec.get("shield", false), anim, line)
 	_guarding = on
+
+
+## How hard the current strike lands, relative to an ordinary one (an
+## ultimate hits harder). 1.0 outside attacks.
+func attack_power() -> float:
+	if _attack_anim == "" or attack_phase() == "none":
+		return 1.0
+	var per: Array = _attack_move.get("hit_power", [])
+	if not per.is_empty():
+		return float(per[mini(_hit_idx, per.size() - 1)])
+	return float(_attack_move.get("power", 1.0))
+
+
+func ultimate_ready() -> bool:
+	return ultimate >= 1.0
+
+
+func _set_ultimate(v: float) -> void:
+	var nv := clampf(v, 0.0, 1.0)
+	if is_equal_approx(nv, ultimate):
+		return
+	ultimate = nv
+	ultimate_changed.emit(self, ultimate)
+
+
+## Multi-strike moves (the ultimate combination) list the clip times at which
+## a new blow begins: each one is a fresh strike (its own serial), so every
+## punch and kick of the combination can land on the same man.
+func _advance_hits() -> void:
+	var hits: Array = _attack_move.get("hits", [])
+	if hits.is_empty() or _hit_idx >= hits.size() or not anim or anim.current_animation != _attack_anim:
+		return
+	var length := anim.current_animation_length
+	if length <= 0.0:
+		return
+	if anim.current_animation_position / length >= float(hits[_hit_idx]):
+		_hit_idx += 1
+		attack_serial += 1
 
 
 ## Where the current attack is: "prep" (wind-up), "accel" (bringing the
@@ -797,7 +907,7 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 	var kind: String = info["kind"]
 	var speed: float = clampf(info["speed"], 0.0, 22.0)
 	var wmass: float = info.get("mass", 1.2)
-	var quality := float(info.get("quality", 1.0))
+	var quality := float(info.get("quality", 1.0)) * float(info.get("power", 1.0))
 	var channel := float(wdef.get(kind, 0.6))
 	if info.get("part", "") == "haft":
 		channel = 0.35
@@ -825,7 +935,8 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 	# Momentum knock: blunt weapons and heavy blows move even armoured men;
 	# worn weight steadies them.
 	var stability := 1.0 + worn_weight / 28.0
-	var force := speed * wmass * float(wdef.get("stagger", 1.0)) * (1.25 if kind == "blunt" else 1.0) / stability
+	var force := speed * wmass * float(wdef.get("stagger", 1.0)) * (1.25 if kind == "blunt" else 1.0) / stability \
+		* sqrt(float(info.get("power", 1.0)))
 	if _guarding:
 		force *= 0.7
 	var margin := balance.margin if balance else 0.1
@@ -836,6 +947,10 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 		_controller.next_stumble_drift = clampf(force * 0.16, 0.3, 3.2)
 	kickback_character.receive_hit(body, dir, point, profile)
 	last_attacker = info.get("attacker")
+	# The exchange builds both men's ultimates: the striker's most.
+	if last_attacker and last_attacker != self and not last_attacker._attack_move.get("ultimate", false):
+		last_attacker._set_ultimate(last_attacker.ultimate + ULT_GAIN_HIT * clampf(speed / 5.0, 0.7, 1.4))
+	_set_ultimate(ultimate + ULT_GAIN_HURT)
 
 	var hard: bool = prot["hard"] and prot["remaining"] < 0.35
 	var sev := clampf(flesh / 30.0, 0.05, 1.0)
@@ -878,8 +993,12 @@ func receive_weapon_hit(info: Dictionary) -> Dictionary:
 			_downed = true
 	wounded.emit(self, result)
 	if region in ["hand_r", "forearm_r", "upper_arm_r"] and grip:
-		# A blow on the weapon arm jars the grip.
-		grip.shock((trauma + flesh * 0.5) / 7.0, dir)
+		# Only a critical blow on the weapon arm opens the hand.
+		grip.arm_blow(trauma + flesh * 0.5, dir, inj["fractured_now"], sever)
+	if force >= CombatProfiles.CRUSHING_FORCE or inj["lethal"] or sever:
+		# A crushing blow: if it also takes him off his feet, the weapon goes
+		# with the fall (see _on_ragdoll_started).
+		_critical_until = Time.get_ticks_msec() + 700
 	_apply_injury_effects()
 	if inj["lethal"]:
 		_take_damage(health + 1.0)
@@ -1002,11 +1121,9 @@ func yield_fight() -> void:
 ## out of a weak hand.
 func on_weapon_clash(other: PhysicsWeapon, intensity: float) -> void:
 	if is_instance_valid(weapon) and weapon.is_held():
+		# The hand gives with the blow but does not open: a parry is not a
+		# critical hit.
 		weapon.soften(lerpf(0.75, 0.3, intensity), 0.18 + intensity * 0.25)
-		var shock := intensity * 2.4 * sqrt(other.mass / 1.2) if is_instance_valid(other) else intensity * 2.4
-		var away := (weapon.global_position - other.global_position).normalized() if is_instance_valid(other) else Vector3.UP
-		if grip and grip.shock(shock, away):
-			return
 	if _attack_timer > 0.0 and intensity > 0.45:
 		# A hard parry ends the committed part of the attack sooner.
 		_attack_timer = minf(_attack_timer, 0.3)
@@ -1068,11 +1185,13 @@ func _on_stagger_finished() -> void:
 
 func _on_ragdoll_started() -> void:
 	_downed = true
-	# A man knocked off his feet lets go of what is in his hands.
-	if is_instance_valid(weapon):
-		drop_weapon(weapon.linear_velocity * weapon.mass * 0.2)
-	if is_instance_valid(shield):
-		drop_shield()
+	# A man knocked off his feet keeps hold of his weapon and shield unless
+	# a critical blow put him there.
+	if Time.get_ticks_msec() < _critical_until:
+		if is_instance_valid(weapon):
+			drop_weapon(weapon.linear_velocity * weapon.mass * 0.2)
+		if is_instance_valid(shield):
+			drop_shield()
 	# Dust when the body meets the ground, a beat after the fall starts.
 	get_tree().create_timer(0.45).timeout.connect(func():
 		if is_instance_valid(self):

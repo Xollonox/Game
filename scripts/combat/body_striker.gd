@@ -86,7 +86,8 @@ func _scan(strikers: Array, phase: String, touched: Dictionary) -> void:
 			var best: Dictionary = _pending.get(tid, {})
 			if best.is_empty() or float(verdict["energy"]) > float(best["verdict"]["energy"]):
 				_pending[tid] = {"verdict": verdict, "target": target, "body": body, "point": limb.global_position,
-					"dir": v_rel.normalized(), "def": def, "serial": actor.attack_serial}
+					"dir": v_rel.normalized(), "def": def, "serial": actor.attack_serial,
+					"power": actor.attack_power()}
 
 
 func _deliver(p: Dictionary) -> void:
@@ -100,5 +101,6 @@ func _deliver(p: Dictionary) -> void:
 		"rig_name": String((p["body"] as RigidBody3D).name), "dir": p["dir"], "speed": float(v["speed"]),
 		"kind": "blunt", "quality": float(v["quality"]), "part": "head", "weapon": null,
 		"def": def, "attacker": actor, "point": p["point"], "mass": float(def["mass"]),
+		"power": p.get("power", 1.0),
 	})
 	actor.landed_hit.emit(target.name, "")

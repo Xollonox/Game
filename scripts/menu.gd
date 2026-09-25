@@ -19,6 +19,8 @@ var _buttons: Array[Button] = []
 
 
 func _ready() -> void:
+	# The menu camera and props are animated per frame, not per tick.
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_build_world()
 	_build_ui()
 	AudioDirector.play_menu_music()
@@ -246,6 +248,8 @@ func _controls_panel() -> Control:
 		["Thrust", "F  ·  middle click  ·  THRUST"],
 		["Guard", "hold C  ·  right mouse  ·  GUARD"],
 		["Heavy blow", "cut while sprinting"],
+		["Kick", "V  ·  KICK"],
+		["Ultimate", "R  ·  ULT, once the meter under your health is full"],
 		["Step back", "X"],
 		["Yield", "hold G when badly hurt: lose the bout, keep your life"],
 		["Mercy", "a beaten man may yield — spare him and he owes the Hollow nothing"],
@@ -279,8 +283,9 @@ func _settings_panel() -> Control:
 	box.add_child(_slider("Ambience", GameState.ambience, func(v):
 		GameState.ambience = v
 		GameState.apply()))
-	box.add_child(_toggle("Shadows & Effects", GameState.quality_high, func(on):
-		GameState.quality_high = on
+	box.add_child(_quality_row(func(): GameState.cycle_quality()))
+	box.add_child(_toggle("Auto Resolution", GameState.auto_resolution, func(on):
+		GameState.auto_resolution = on
 		GameState.apply()))
 	box.add_child(_toggle("Blood", GameState.blood, func(on):
 		GameState.blood = on
@@ -436,3 +441,24 @@ func _spacer(h: float) -> Control:
 	var c := Control.new()
 	c.custom_minimum_size = Vector2(0.0, h)
 	return c
+
+
+## Graphics preset: a button cycling Low → Medium → High → Ultra.
+func _quality_row(on_press: Callable) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var l := Label.new()
+	l.text = "Graphics"
+	l.custom_minimum_size = Vector2(180.0, 0.0)
+	l.add_theme_font_size_override("font_size", 16)
+	l.add_theme_color_override("font_color", UITheme.INK_DIM)
+	row.add_child(l)
+	var b := Button.new()
+	b.text = GameState.QUALITY_NAMES[GameState.quality]
+	b.custom_minimum_size = Vector2(120.0, 0.0)
+	b.focus_mode = Control.FOCUS_NONE
+	b.pressed.connect(func():
+		on_press.call()
+		b.text = GameState.QUALITY_NAMES[GameState.quality])
+	row.add_child(b)
+	return row

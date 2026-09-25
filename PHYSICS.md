@@ -116,11 +116,14 @@ source):
   weapon's GripSecondary each step (compliant, not welded).
 - Weapon–weapon contact softens the hand spring (`soften`) and a sustained
   bind lowers it further, so parries physically change the blade's path.
-- `WeaponGrip`: strength = hands × arm function × state × intent. Strain
-  (how hard the hand must drag the weapon back, only while something
-  resists it) above strength for 0.14 s, or a shock > 2.2 × strength (hard
-  parry, blow to the weapon arm), tears it loose. Falls and death release
-  weapons.
+- `WeaponGrip`: only a **critical** blow opens the hand — a fracture or
+  severing of the weapon arm, a blow on it of trauma + flesh/2 ≥ 26, or a
+  crushing blow (≥ `CRUSHING_FORCE`, lethal, or severing) that also knocks
+  the fighter off his feet. Parries, binds, strain, light hand cuts and
+  ordinary falls leave the weapon held (the hand spring gives instead). A
+  ruined arm (function < 0.2), yielding and death release weapons. Grip
+  strength (hands × arm function × state × intent) scales how far a
+  critical blow throws the weapon.
 - Dropped weapons are ordinary rigid bodies in group `world_items`; the
   former wielder is ignored for 0.6 s, then they rest against him harmlessly.
 - Pickup (player E / touch TAKE; AI when disarmed): the fighter steps in,
@@ -130,11 +133,39 @@ source):
 
 ## Unarmed
 
-Punches (Jab, Cross, Hook) and kicks (`Kick_Front`, `Kick_Low`, authored in
-`melee_anims.py`) strike with the fist or foot rig body: `BodyStriker`
+Punches (jab, cross, hook, uppercut, body shot), front kicks, the forearm
+blocks and the boxing guard are real motion capture (CMU mocap, retargeted
+by `tools/blender/mocap_anims.py`; each clip's hit window is the measured
+speed peak of the fist or foot, in `mocap_anims.json`). `Kick_Low` stays the
+authored one. They strike with the fist or foot rig body: `BodyStriker`
 sphere-queries the striking limb during accel/active/follow and scores the
 contact through the same evaluator (fist 2.2 kg, foot 5.5 kg effective).
 Anyone can kick (V / touch KICK); no attacks while stumbling.
+
+## Ultimate
+
+Landing blows fills a meter (0.16 × speed factor per blow, ~6 blows; being
+hit adds 0.05). When full, `attack("ultimate")` (R / touch ULT; the AI at its
+first opening) spends it: bare-handed, the captured jab-jab-cross-kick-kick
+combination, whose `hits` times start a fresh strike serial so every blow
+can land; armed, the family's heavy move 15 % faster. Both land at
+`power` 1.6 (damage and knockback).
+
+## Smoothness and scaling
+
+- Physics interpolation is on: bodies, weapons and the camera render
+  between physics ticks. `PhysicsRigSync` runs per rendered frame and poses
+  the skin from `get_global_transform_interpolated()` of the rig bodies, so
+  fighters move smoothly at 30, 60, 144 Hz alike. Teleports call
+  `reset_physics_interpolation()`; pooled FX and per-frame props opt out.
+- Fighter animation advances on the physics tick
+  (`ANIMATION_CALLBACK_MODE_PROCESS_PHYSICS`): the pose the springs chase
+  never outruns the simulation on a slow device.
+- Graphics presets (`GameState.quality`): Low / Medium / High / Ultra set 3D
+  render scale, shadow atlas and filter, MSAA, particle budget, glow and
+  (Forward+) SSAO. First run picks Low on phones, Medium on the web, High on
+  desktop. Auto Resolution drops the 3D scale in 0.1 steps (to 0.5) while the
+  frame rate stays under 50 and restores it with headroom; the UI stays sharp.
 
 ## Collision layers
 
@@ -225,6 +256,7 @@ xvfb-run -a godot --path . res://tests/item_test.tscn
 xvfb-run -a godot --path . res://tests/blood_test.tscn
 xvfb-run -a godot --path . res://tests/sever_test.tscn
 xvfb-run -a godot --path . res://tests/armour_test.tscn
+xvfb-run -a godot --path . res://tests/mocap_test.tscn
 ```
 
 ## Known limits

@@ -69,6 +69,7 @@ func _ready() -> void:
 		player.wounded.connect(func(_a, info: Dictionary): hud.hurt(clampf(float(info.get("damage", 0.0)) / 30.0, 0.0, 1.0)))
 		player.global_position = Vector3(0, 0, 4.2)
 		player.rotation.y = PI
+		player.reset_physics_interpolation()
 	if touch_controls:
 		touch_controls.camera_dragged.connect(_on_camera_dragged)
 	CombatFX.shake_requested.connect(_on_shake_requested)
@@ -89,6 +90,7 @@ func _ready() -> void:
 	_music()
 	_cam_yaw = 0.0
 	camera.global_position = Vector3(6, 3.0, 8)
+	camera.reset_physics_interpolation()
 	_begin_intro()
 
 
@@ -121,10 +123,12 @@ func _stock_bench() -> void:
 		add_child(it)
 		it.global_position = BENCH_POS + along * (i - 1) * 0.45 + Vector3.UP * 0.75
 		it.rotation.y = rng.randf() * TAU
+		it.reset_physics_interpolation()
 	var spare := PhysicsWeapon.create(["cudgel", "rondel_dagger", "falchion", "war_spear"][rng.randi() % 4])
 	add_child(spare)
 	spare.global_position = BENCH_POS - along * 0.1 + Vector3(0.35, 0.3, 0.35)
 	spare.rotation = Vector3(PI * 0.5, rng.randf() * TAU, 0.0)
+	spare.reset_physics_interpolation()
 	spare.release()
 
 
@@ -159,6 +163,7 @@ func _spawn_foes() -> void:
 		add_child(e)
 		e.global_position = gate
 		e.rotation.y = 0.0
+		e.reset_physics_interpolation()
 		e.walk_to = mark
 		e.set_engage_delay(9999.0)
 		e.token_granted = _grant_token
@@ -213,6 +218,12 @@ func _apply_settings() -> void:
 		sun.shadow_enabled = GameState.quality_high
 	CombatFX.blood_enabled = GameState.blood
 	CombatFX.quality_high = GameState.quality_high
+	var we := get_node_or_null("WorldEnvironment") as WorldEnvironment
+	if we and we.environment:
+		# Bloom from High up; ambient occlusion on Ultra (Forward+ only, the
+		# web renderer ignores it).
+		we.environment.glow_enabled = GameState.quality >= GameState.Quality.HIGH
+		we.environment.ssao_enabled = GameState.quality == GameState.Quality.ULTRA
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -312,6 +323,7 @@ func _physics_process(delta: float) -> void:
 
 func _update_hud() -> void:
 	hud.set_vitals(player.health, player.max_health)
+	hud.set_ultimate(player.ultimate)
 	hud.set_prompt(String(player.get("interact_prompt")) if phase == Phase.FIGHT else "")
 	var entries: Array = []
 	for e in _enemies:

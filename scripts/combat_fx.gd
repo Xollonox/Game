@@ -84,6 +84,8 @@ var _hitstop_until_ms := 0
 
 
 func _ready() -> void:
+	# Pooled effects are moved between uses: teleports, never interpolated.
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_rng.randomize()
 	blood_enabled = not OS.get_cmdline_user_args().has("--noblood")
 	var blood_tex := _make_blood_texture()
@@ -147,7 +149,7 @@ func spray(pos: Vector3, dir: Vector3, severity: float) -> void:
 	p.global_position = pos
 	p.direction = dir.normalized() if dir.length_squared() > 0.001 else Vector3.UP
 	p.spread = 38.0
-	p.amount = int(lerpf(10.0, 44.0, severity) * (1.0 if quality_high else 0.55))
+	p.amount = int(lerpf(10.0, 44.0, severity) * GameState.fx_scale())
 	p.initial_velocity_min = lerpf(1.2, 3.0, severity)
 	p.initial_velocity_max = lerpf(3.5, 9.0, severity)
 	p.scale_amount_min = lerpf(0.018, 0.03, severity)
@@ -166,7 +168,7 @@ func spurt(pos: Vector3, dir: Vector3, strength: float) -> void:
 	p.global_position = pos
 	p.direction = dir.normalized()
 	p.spread = 9.0
-	p.amount = int(lerpf(8.0, 26.0, strength) * (1.0 if quality_high else 0.5))
+	p.amount = int(lerpf(8.0, 26.0, strength) * GameState.fx_scale())
 	p.initial_velocity_min = lerpf(1.2, 2.6, strength)
 	p.initial_velocity_max = lerpf(2.0, 4.2, strength)
 	p.scale_amount_min = 0.012
@@ -371,7 +373,7 @@ func sparks(pos: Vector3, dir: Vector3, intensity: float) -> void:
 	_next_spark = (_next_spark + 1) % _sparks.size()
 	p.global_position = pos
 	p.direction = (-dir + Vector3.UP * 0.4).normalized()
-	p.amount = int(lerpf(8.0, 26.0, intensity) * (1.0 if quality_high else 0.5))
+	p.amount = int(lerpf(8.0, 26.0, intensity) * GameState.fx_scale())
 	p.restart()
 	p.emitting = true
 

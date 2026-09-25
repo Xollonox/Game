@@ -23,12 +23,13 @@ damage from its own measured contact speed.
 | `C` / right mouse (hold), or GUARD | Guard |
 | `X` | Step back out of range |
 | `G` (hold, when badly hurt) | Yield: lose the bout, keep your life (-10 renown) |
-| `V` | Kick (forward = push kick, back/side = low kick) — armed or not |
+| `V` | Kick (forward = front kick, left or right leg; back/side = low kick) — armed or not |
+| `R`, or ULT | Ultimate, once the gold meter under your health is full (landing blows fills it) |
 | `E` | Take up a loose weapon at your feet (yours, or one knocked out of a hand) |
 | `Shift` | Sprint (cut while sprinting = heavy blow) |
 | `Q` / `E`, middle-drag, touch drag | Turn the camera; `Tab` toggles lock-on |
 | Mouse wheel | Zoom |
-| `Esc` | Pause (settings, leave) |
+| `Esc` | Pause (settings: graphics Low–Ultra, auto resolution, volumes, blood; leave) |
 
 ## The run
 

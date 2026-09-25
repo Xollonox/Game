@@ -13,6 +13,12 @@ Built by `tools/blender/build_fighter.py` from these CC0 sources (none redistrib
 - **Universal Animation Library [Standard]** by Quaternius — https://quaternius.itch.io/universal-animation-library (Unreal-named FBX) — CC0 1.0. 19 clips (idle, walk, jog, sprint, hits, death, roll, punches…) retargeted in world space onto the base body (`tools/blender/anim_retarget.py`).
 - **Universal Animation Library 2 [Standard]** by Quaternius — https://quaternius.itch.io/universal-animation-library-2 — CC0 1.0. 24 clips (sword combos, block, shield, knockback, get-up, zombie locomotion…) retargeted the same way.
 - The **XV-century wardrobe** (shirt, tunic, hose, shoes, boots, hood, cap, gloves, gambeson, haubergeon, mail coif, brigandine, cuirass with fauld, pauldrons, rerebraces, vambraces, couters, gauntlets, cuisses, poleyns, greaves, sabatons, belts, pouch) and the **helmets** (skullcap, kettle hat, bascinet with aventail, sallet with bevor, barbute, padded coif) are original, generated from the body by `tools/blender/wardrobe.py` / `helmets.py`.
+- **CMU Graphics Lab Motion Capture Database** — Carnegie Mellon University — http://mocap.cs.cmu.edu — funded by NSF EIA-0196217. License (from the database's own terms): "free for all uses… You may include this data in commercially-sold products, but you may not resell this data directly, even in converted form." Used, retargeted onto the fighter by `tools/mocap/cmu_to_bvh.py` (ASF/AMC → BVH) and `tools/blender/mocap_anims.py` into `assets/models/characters/fighter/mocap_anims.glb`:
+  - subject 14 (boxing) takes 14_01, 14_02, 14_03 — guard, jab, cross, hook, uppercut, body shot;
+  - subject 135 (martial arts) take 135_04 — right and left front kicks;
+  - subject 141 take 141_14 (punch and kick) — the ultimate combination;
+  - subject 144 takes 144_07, 144_26 (blocks) — the bare-handed forearm blocks.
+  Modifications: windows cut around each strike, rest-aligned retarget, horizontal root motion reduced and detrended, grounded, the guard loop-blended; finger poses come from the fighter's own punch clip. Only the retargeted clips are redistributed, never the source files.
 - The **melee animation library** (stances, guards, Oberhau / Mittelhau / Unterhau / thrusts for sword, longsword, blunt weapons, dagger, spear, shield) is original, authored on an IK rig by `tools/blender/melee_anims.py`.
 
 ### Physics addon — `addons/kickback/`
