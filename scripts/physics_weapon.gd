@@ -74,6 +74,13 @@ const GRAB_TIME := 0.45
 ## lifted a moment after release, see release()).
 var former_wielder: KickbackActor
 var _soft_t := 0.0
+## After a jam (the blade held fast against a body or the ground), the hand
+## gives and then brings the weapon back at a hand's pace: a firm grip no
+## longer lets go, so without this the spring would whip the freed blade
+## back into line.
+var _recover_t := 0.0
+const JAM_STRAIN := 1.2
+const RECOVER_TIME := 0.3
 var _seated := true
 var _soft_factor := 1.0
 ## Steps of blade-on-blade contact in a row: a bind.
@@ -285,6 +292,14 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	if axis.length_squared() > 0.0001 and angle > 0.001:
 		ang_target = axis.normalized() * angle * ANGULAR_STIFFNESS
 	state.angular_velocity = state.angular_velocity.lerp(ang_target, _fr_weight(_ang_weight * k, delta))
+	_recover_t = maxf(0.0, _recover_t - delta)
+	if _seated and grip_strain > JAM_STRAIN:
+		_recover_t = RECOVER_TIME
+		soften(0.45, RECOVER_TIME)
+	if _recover_t > 0.0 and wielder and not wielder.is_swinging():
+		var hand_v := grip_body.linear_velocity
+		state.linear_velocity = hand_v + (state.linear_velocity - hand_v).limit_length(3.0)
+		state.angular_velocity = state.angular_velocity.limit_length(9.0)
 	if not _seated:
 		# Being drawn into the hand after a pickup: close the gap at a hand's
 		# pace, never a snap, until it sits in the palm.
@@ -298,6 +313,11 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	# being drawn in after a pickup its lag is not strain.
 	if not _seated and pos_error.length() < 0.07 and angle < 0.35:
 		_seated = true
+	# The floor comes back only once the blade is fully in hand and lifted
+	# clear of it: re-enabled under a blade still lying there, depenetration
+	# would shove it out of the palm.
+	if _seated and collision_mask != WEAPON_MASK and _grab_blend >= 1.0 \
+			and minf(current.origin.y, (current * tip_local).y) > 0.25:
 		collision_mask = WEAPON_MASK
 	# A blade that lags the hand in free air is just inertia: strain only
 	# builds while something external holds the weapon back (a bind, a body,
